@@ -31,7 +31,7 @@ export default function DetalleLocal({ params }: { params: Promise<{ id: string 
   if (loadVentas) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <RefreshCw className="animate-spin text-indigo-500" size={24} />
+        <RefreshCw className="animate-spin text-[#F5B731]" size={24} />
       </div>
     )
   }

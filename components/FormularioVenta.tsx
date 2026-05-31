@@ -56,7 +56,7 @@ export default function FormularioVenta({ locales, onSuccess }: Props) {
     }
   }
 
-  const campo = 'w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300'
+  const campo = 'w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#F5B731]'
 
   return (
     <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-gray-200 p-5">
@@ -141,7 +141,7 @@ export default function FormularioVenta({ locales, onSuccess }: Props) {
       <button
         type="submit"
         disabled={guardando}
-        className="mt-4 w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-medium py-2.5 rounded-lg transition-colors"
+        className="mt-4 w-full flex items-center justify-center gap-2 bg-[#F5B731] hover:bg-[#e5a820] disabled:opacity-60 text-[#1A1A1A] text-sm font-bold py-2.5 rounded-lg transition-colors"
       >
         <Save size={15} />
         {guardando ? 'Guardando...' : 'Guardar venta'}

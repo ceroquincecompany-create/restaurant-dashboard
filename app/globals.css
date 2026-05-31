@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+@theme {
+  --color-sofi: #F5B731;
+  --color-sofi-dark: #1A1A1A;
+}
+
 body {
-  @apply text-gray-900;
+  @apply text-gray-900 bg-white;
 }

@@ -30,6 +30,13 @@ INSERT INTO locales (nombre, direccion) VALUES
   ('Local Sur', 'Calle Alcalá 120, Madrid')
 ON CONFLICT DO NOTHING;
 
+-- ──────────────────────────────────────────────────────────────
+-- IDENTIDAD SOFI — ejecutar en Supabase SQL Editor
+-- ──────────────────────────────────────────────────────────────
+-- UPDATE locales SET nombre = 'SOFI Pinomonotano' WHERE id = 1;
+-- UPDATE locales SET nombre = 'Próxima Apertura', activo = false WHERE id = 2;
+-- UPDATE locales SET activo = false WHERE id = 3;
+
 -- Datos de ejemplo: ventas de los últimos 30 días
 INSERT INTO ventas (local_id, fecha, total_ventas, coste_alimentos, coste_personal, num_clientes)
 SELECT
@@ -87,6 +94,148 @@ CREATE TABLE IF NOT EXISTS escandallos_resumen (
 -- Row Level Security
 ALTER TABLE ingredientes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE escandallos_resumen ENABLE ROW LEVEL SECURITY;
+
+-- ──────────────────────────────────────────────────────────────
+-- FINANZAS — P&L por local, mes, año
+-- ──────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS pl_datos (
+  id SERIAL PRIMARY KEY,
+  local_id INTEGER REFERENCES locales(id) ON DELETE CASCADE,
+  año INTEGER NOT NULL,
+  mes INTEGER NOT NULL CHECK (mes BETWEEN 1 AND 12),
+  partida TEXT NOT NULL,
+  valor_real NUMERIC(12, 2) DEFAULT 0,
+  valor_presupuesto NUMERIC(12, 2) DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(local_id, año, mes, partida)
+);
+
+ALTER TABLE pl_datos ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Lectura pública pl_datos"   ON pl_datos FOR SELECT USING (true);
+CREATE POLICY "Inserción pl_datos"         ON pl_datos FOR INSERT WITH CHECK (true);
+CREATE POLICY "Actualización pl_datos"     ON pl_datos FOR UPDATE USING (true);
+CREATE POLICY "Eliminación pl_datos"       ON pl_datos FOR DELETE USING (true);
+
+-- Datos de ejemplo: SOFI Pinomonotano (local_id=1), Febrero 2026
+INSERT INTO pl_datos (local_id, año, mes, partida, valor_real, valor_presupuesto) VALUES
+(1,2026,2,'ventas_sala',45000,42000),
+(1,2026,2,'ventas_uber',12000,10000),
+(1,2026,2,'proveedores',15000,14000),
+(1,2026,2,'inventario_inicial',3000,2800),
+(1,2026,2,'inventario_final',2500,2500),
+(1,2026,2,'mermas',800,500),
+(1,2026,2,'comision_plataforma',1800,1500),
+(1,2026,2,'promociones',600,400),
+(1,2026,2,'envio_gratis',200,200),
+(1,2026,2,'ads_uber',800,600),
+(1,2026,2,'devoluciones',150,100),
+(1,2026,2,'alquiler',3500,3500),
+(1,2026,2,'comunidad',200,200),
+(1,2026,2,'basura',80,80),
+(1,2026,2,'seguro_local',150,150),
+(1,2026,2,'extintores',0,50),
+(1,2026,2,'desinsectacion',120,120),
+(1,2026,2,'alarma',60,60),
+(1,2026,2,'otros_gopex',200,100),
+(1,2026,2,'luz',800,700),
+(1,2026,2,'agua',150,120),
+(1,2026,2,'gas',600,500),
+(1,2026,2,'telefonia',100,100),
+(1,2026,2,'tpv_kds',150,150),
+(1,2026,2,'otros_suministros',50,50),
+(1,2026,2,'reparaciones',300,200),
+(1,2026,2,'compras_arreglos',150,100),
+(1,2026,2,'uniformes',80,0),
+(1,2026,2,'menaje_maquinaria',200,150),
+(1,2026,2,'otros_mantenimiento',50,50),
+(1,2026,2,'foodies',300,300),
+(1,2026,2,'carteleria',150,100),
+(1,2026,2,'merchandising',50,50),
+(1,2026,2,'accion_especial',200,0),
+(1,2026,2,'otros_marketing',50,50),
+(1,2026,2,'sueldos',14000,13000),
+(1,2026,2,'seguros_sociales',4200,3900),
+(1,2026,2,'incentivos',500,400)
+ON CONFLICT (local_id, año, mes, partida) DO UPDATE SET
+  valor_real = EXCLUDED.valor_real,
+  valor_presupuesto = EXCLUDED.valor_presupuesto,
+  updated_at = NOW();
+
+-- ──────────────────────────────────────────────────────────────
+-- PRODUCTOS Y RECETAS
+-- ──────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS productos (
+  id SERIAL PRIMARY KEY,
+  nombre TEXT NOT NULL,
+  familia TEXT,
+  pvp_sala NUMERIC(10, 4),
+  pvp_delivery NUMERIC(10, 4),
+  activo BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(nombre, familia)
+);
+
+CREATE TABLE IF NOT EXISTS recetas (
+  id SERIAL PRIMARY KEY,
+  producto_id INTEGER REFERENCES productos(id) ON DELETE CASCADE,
+  ingrediente_id INTEGER REFERENCES ingredientes(id) ON DELETE SET NULL,
+  cantidad_bruta NUMERIC(12, 6),
+  cantidad_neta NUMERIC(12, 6),
+  merma_pct NUMERIC(8, 6) DEFAULT 0,
+  coste NUMERIC(12, 6),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE productos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE recetas ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Lectura pública productos"   ON productos FOR SELECT USING (true);
+CREATE POLICY "Inserción productos"         ON productos FOR INSERT WITH CHECK (true);
+CREATE POLICY "Actualización productos"     ON productos FOR UPDATE USING (true);
+CREATE POLICY "Eliminación productos"       ON productos FOR DELETE USING (true);
+
+CREATE POLICY "Lectura pública recetas"     ON recetas FOR SELECT USING (true);
+CREATE POLICY "Inserción recetas"           ON recetas FOR INSERT WITH CHECK (true);
+CREATE POLICY "Actualización recetas"       ON recetas FOR UPDATE USING (true);
+CREATE POLICY "Eliminación recetas"         ON recetas FOR DELETE USING (true);
+
+-- ──────────────────────────────────────────────────────────────
+-- PROVEEDORES
+-- ──────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS proveedores (
+  id SERIAL PRIMARY KEY,
+  nombre TEXT NOT NULL,
+  cif TEXT,
+  direccion TEXT,
+  contacto TEXT,
+  telefono TEXT,
+  email TEXT,
+  dias_entrega TEXT[] DEFAULT '{}',
+  canal_aviso TEXT,
+  forma_pago TEXT,
+  iban TEXT,
+  notas TEXT,
+  activo BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE proveedores ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Lectura pública proveedores" ON proveedores FOR SELECT USING (true);
+CREATE POLICY "Inserción proveedores"       ON proveedores FOR INSERT WITH CHECK (true);
+CREATE POLICY "Actualización proveedores"   ON proveedores FOR UPDATE USING (true);
+CREATE POLICY "Eliminación proveedores"     ON proveedores FOR DELETE USING (true);
+
+-- Añadir FK proveedor_id a ingredientes (idempotente)
+ALTER TABLE ingredientes ADD COLUMN IF NOT EXISTS proveedor_id INTEGER REFERENCES proveedores(id) ON DELETE SET NULL;
+
+-- Hacer que ingredientes.id sea auto-incremental para nuevas filas
+CREATE SEQUENCE IF NOT EXISTS ingredientes_id_seq START WITH 200;
+ALTER TABLE ingredientes ALTER COLUMN id SET DEFAULT nextval('ingredientes_id_seq');
+SELECT setval('ingredientes_id_seq', GREATEST((SELECT MAX(id) FROM ingredientes), 199) + 1);
 
 -- Políticas
 CREATE POLICY "Lectura pública ingredientes" ON ingredientes FOR SELECT USING (true);

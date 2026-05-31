@@ -47,7 +47,7 @@ export default function Dashboard() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <RefreshCw className="animate-spin mx-auto text-indigo-500 mb-2" size={24} />
+          <RefreshCw className="animate-spin mx-auto text-[#F5B731] mb-2" size={24} />
           <p className="text-sm text-gray-500">Cargando dashboard...</p>
         </div>
       </div>
