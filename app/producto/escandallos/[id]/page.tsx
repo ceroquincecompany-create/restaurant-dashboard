@@ -2,8 +2,9 @@
 
 import { use, useEffect, useState, useMemo, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Save, Plus, Trash2, RefreshCw, Check, AlertTriangle, Search } from 'lucide-react'
+import { ArrowLeft, Save, Plus, Trash2, RefreshCw, Check, AlertTriangle, Search, X } from 'lucide-react'
 
 // ── Tipos ────────────────────────────────────────────────────
 type Producto = { id: number; nombre: string; familia: string | null; pvp_sala: number | null; pvp_delivery: number | null }
@@ -34,18 +35,26 @@ function calcCoste(cantBruta: number, precio: number) {
 export default function DetalleEscandallo({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const productoId = parseInt(id)
+  const router = useRouter()
 
   const [producto, setProducto] = useState<Producto | null>(null)
   const [lineas, setLineas] = useState<LineaReceta[]>([])
   const [ingredientesDB, setIngredientesDB] = useState<Ingrediente[]>([])
+  const [familiasDB, setFamiliasDB] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [guardando, setGuardando] = useState(false)
   const [guardado, setGuardado] = useState(false)
 
   // Estado del formulario de cabecera
   const [nombre, setNombre] = useState('')
+  const [familia, setFamilia] = useState<string>('')
+  const [familiaPersonalizada, setFamiliaPersonalizada] = useState('')
   const [pvpSala, setPvpSala] = useState<string>('')
   const [pvpDelivery, setPvpDelivery] = useState<string>('')
+
+  // Estado eliminar
+  const [modalEliminar, setModalEliminar] = useState(false)
+  const [eliminando, setEliminando] = useState(false)
 
   // Estado para añadir ingrediente
   const [mostrarBuscador, setMostrarBuscador] = useState(false)
@@ -57,7 +66,7 @@ export default function DetalleEscandallo({ params }: { params: Promise<{ id: st
   // ── Carga inicial ────────────────────────────────────────────
   useEffect(() => {
     async function load() {
-      const [{ data: prod }, { data: recs }, { data: ings }] = await Promise.all([
+      const [{ data: prod }, { data: recs }, { data: ings }, { data: fams }] = await Promise.all([
         supabase.from('productos').select('*').eq('id', productoId).single(),
         supabase
           .from('recetas')
@@ -65,14 +74,19 @@ export default function DetalleEscandallo({ params }: { params: Promise<{ id: st
           .eq('producto_id', productoId)
           .order('id'),
         supabase.from('ingredientes').select('id, nombre_ingrediente, unidad_producto, precio_unidad_producto').order('nombre_ingrediente'),
+        supabase.from('productos').select('familia').neq('familia', null).order('familia'),
       ])
 
       if (prod) {
         setProducto(prod)
         setNombre(prod.nombre)
+        setFamilia(prod.familia ?? '')
         setPvpSala(prod.pvp_sala?.toString() ?? '')
         setPvpDelivery(prod.pvp_delivery?.toString() ?? '')
       }
+
+      const familiasUnicas = Array.from(new Set((fams ?? []).map((f: any) => f.familia).filter(Boolean))).sort() as string[]
+      setFamiliasDB(familiasUnicas)
 
       if (recs) {
         setLineas(
@@ -167,13 +181,23 @@ export default function DetalleEscandallo({ params }: { params: Promise<{ id: st
     setMermaNueva('0')
   }
 
+  // ── Eliminar producto ────────────────────────────────────────
+  async function eliminarProducto() {
+    setEliminando(true)
+    await supabase.from('productos').delete().eq('id', productoId)
+    router.push('/producto/escandallos')
+  }
+
   // ── Guardar ──────────────────────────────────────────────────
   async function guardar() {
     if (!producto) return
     setGuardando(true)
 
+    const familiaFinal = familia === '__nueva__' ? familiaPersonalizada.trim() || null : familia || null
+
     await supabase.from('productos').update({
       nombre,
+      familia: familiaFinal,
       pvp_sala: parseFloat(pvpSala) || null,
       pvp_delivery: parseFloat(pvpDelivery) || null,
     }).eq('id', productoId)
@@ -237,7 +261,25 @@ export default function DetalleEscandallo({ params }: { params: Promise<{ id: st
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="sm:col-span-1">
                 <label className="block text-xs text-gray-500 mb-1">Familia</label>
-                <p className="text-sm font-semibold text-gray-700 py-1.5">{producto.familia ?? '—'}</p>
+                <select
+                  value={familia}
+                  onChange={(e) => setFamilia(e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#F5B731] bg-white"
+                >
+                  <option value="">— Sin familia —</option>
+                  {familiasDB.map((f) => (
+                    <option key={f} value={f}>{f}</option>
+                  ))}
+                  <option value="__nueva__">+ Nueva familia…</option>
+                </select>
+                {familia === '__nueva__' && (
+                  <input
+                    value={familiaPersonalizada}
+                    onChange={(e) => setFamiliaPersonalizada(e.target.value)}
+                    placeholder="Nombre de la nueva familia"
+                    className="mt-1.5 w-full rounded-lg border border-[#F5B731] px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F5B731]"
+                  />
+                )}
               </div>
               <div className="sm:col-span-2">
                 <label className="block text-xs text-gray-500 mb-1">Nombre del producto</label>
@@ -413,21 +455,63 @@ export default function DetalleEscandallo({ params }: { params: Promise<{ id: st
             </div>
           </div>
 
-          {/* Botón guardar */}
-          <button
-            onClick={guardar}
-            disabled={guardando}
-            className="w-full flex items-center justify-center gap-2 bg-[#F5B731] hover:bg-[#e5a820] disabled:opacity-60 text-[#1A1A1A] font-bold text-sm py-3 rounded-xl transition-colors"
-          >
-            {guardado ? (
-              <><Check size={16} /> Cambios guardados</>
-            ) : guardando ? (
-              <><RefreshCw size={15} className="animate-spin" /> Guardando...</>
-            ) : (
-              <><Save size={15} /> Guardar cambios</>
-            )}
-          </button>
+          {/* Botones acción */}
+          <div className="flex gap-3">
+            <button
+              onClick={guardar}
+              disabled={guardando}
+              className="flex-1 flex items-center justify-center gap-2 bg-[#F5B731] hover:bg-[#e5a820] disabled:opacity-60 text-[#1A1A1A] font-bold text-sm py-3 rounded-xl transition-colors"
+            >
+              {guardado ? (
+                <><Check size={16} /> Cambios guardados</>
+              ) : guardando ? (
+                <><RefreshCw size={15} className="animate-spin" /> Guardando...</>
+              ) : (
+                <><Save size={15} /> Guardar cambios</>
+              )}
+            </button>
+            <button
+              onClick={() => setModalEliminar(true)}
+              className="flex items-center gap-2 px-4 py-3 bg-rose-50 text-rose-600 hover:bg-rose-100 font-semibold text-sm rounded-xl transition-colors border border-rose-100"
+            >
+              <Trash2 size={15} />
+              Eliminar
+            </button>
+          </div>
         </div>
+
+        {/* ── Modal eliminar ────────────────────────────────── */}
+        {modalEliminar && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6">
+              <div className="flex items-start justify-between mb-4">
+                <h3 className="text-sm font-bold text-gray-900">¿Eliminar producto?</h3>
+                <button onClick={() => setModalEliminar(false)} className="text-gray-400 hover:text-gray-600">
+                  <X size={16} />
+                </button>
+              </div>
+              <p className="text-sm text-gray-500 mb-1">
+                Se eliminará <span className="font-semibold text-gray-700">{nombre}</span> y todas sus líneas de receta.
+              </p>
+              <p className="text-xs text-rose-500 mb-5">Esta acción no se puede deshacer.</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setModalEliminar(false)}
+                  className="flex-1 py-2 text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors font-medium"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={eliminarProducto}
+                  disabled={eliminando}
+                  className="flex-1 py-2 text-sm text-white bg-rose-500 hover:bg-rose-600 rounded-lg transition-colors font-bold disabled:opacity-60"
+                >
+                  {eliminando ? 'Eliminando...' : 'Sí, eliminar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── Panel derecho ─────────────────────────────────── */}
         <div className="space-y-4">

@@ -1,19 +1,22 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import {
-  LayoutDashboard, Store, BarChart3, ClipboardList,
+  LayoutDashboard, Store, BarChart3,
   TrendingUp, ChevronDown, FileText, PlusSquare, Target, Heart,
-  Package, BookOpen, Layers, Truck,
+  Package, BookOpen, Layers, Truck, LogOut,
+  Users2, Users, CalendarDays, ClipboardList, UserCircle, Wallet,
+  ShieldAlert, Trophy,
 } from 'lucide-react'
+import { supabaseAuth } from '@/lib/supabase-browser'
+import { supabase } from '@/lib/supabase'
 
 const navPrincipal = [
   { href: '/', icono: LayoutDashboard, label: 'Dashboard' },
   { href: '/locales', icono: Store, label: 'Locales' },
   { href: '/informes', icono: BarChart3, label: 'Informes' },
-  { href: '/escandallos', icono: ClipboardList, label: 'Escandallos' },
 ]
 
 const productoItems = [
@@ -29,16 +32,32 @@ const finanzasItems = [
   { href: '/finanzas/salud', icono: Heart, label: 'Salud Financiera' },
 ]
 
+const rrhhItems = [
+  { href: '/rrhh/equipo', icono: Users, label: 'Gestión Equipo' },
+  { href: '/rrhh/turnos', icono: CalendarDays, label: 'Turnos' },
+  { href: '/rrhh/fichajes', icono: ClipboardList, label: 'Control Fichajes' },
+  { href: '/rrhh/mi-ficha', icono: UserCircle, label: 'Mi Ficha' },
+  { href: '/rrhh/costes', icono: Wallet, label: 'Costes Personal' },
+  { href: '/rrhh/sanciones', icono: ShieldAlert, label: 'Sanciones' },
+  { href: '/rrhh/incentivos', icono: Trophy, label: 'Incentivos' },
+]
+
 function SeccionColapsable({
   icono: Icono,
   label,
   items,
   prefijo,
+  badgeRojo,
+  badgeAmarillo,
+  badgeNaranja,
 }: {
   icono: React.ElementType
   label: string
   items: { href: string; icono: React.ElementType; label: string }[]
   prefijo: string
+  badgeRojo?: number
+  badgeAmarillo?: number
+  badgeNaranja?: number
 }) {
   const pathname = usePathname()
   const activo = pathname.startsWith(prefijo)
@@ -57,6 +76,21 @@ function SeccionColapsable({
         <span className="flex items-center gap-3">
           <Icono size={17} />
           {label}
+          {(badgeRojo ?? 0) > 0 && (
+            <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold leading-none">
+              {badgeRojo}
+            </span>
+          )}
+          {(badgeAmarillo ?? 0) > 0 && (
+            <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-amber-400 text-[#1A1A1A] text-[10px] font-bold leading-none">
+              {badgeAmarillo}
+            </span>
+          )}
+          {(badgeNaranja ?? 0) > 0 && (
+            <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-orange-500 text-white text-[10px] font-bold leading-none">
+              {badgeNaranja}
+            </span>
+          )}
         </span>
         <ChevronDown
           size={13}
@@ -89,6 +123,54 @@ function SeccionColapsable({
 
 export default function Sidebar() {
   const pathname = usePathname()
+  const router = useRouter()
+  const [bajas, setBajas] = useState(0)
+  const [vacaciones, setVacaciones] = useState(0)
+  const [sancionesActivas, setSancionesActivas] = useState(0)
+  const [vacPendientes, setVacPendientes] = useState(0)
+
+  useEffect(() => {
+    supabase
+      .from('empleados')
+      .select('estado')
+      .eq('activo', true)
+      .then(({ data }) => {
+        if (!data) return
+        setBajas(data.filter((e) => e.estado === 'baja').length)
+        setVacaciones(data.filter((e) => e.estado === 'vacaciones').length)
+      })
+
+    // Sanciones activas este trimestre
+    const hoy = new Date()
+    const mes = hoy.getMonth() + 1
+    const q = Math.ceil(mes / 3)
+    const y = hoy.getFullYear()
+    const mesI = (q - 1) * 3 + 1
+    const mesF = q * 3
+    const lastDay = new Date(y, mesF, 0).getDate()
+    const inicio = `${y}-${String(mesI).padStart(2, '0')}-01`
+    const fin = `${y}-${String(mesF).padStart(2, '0')}-${lastDay}`
+    supabase
+      .from('sanciones')
+      .select('id', { count: 'exact', head: true })
+      .eq('activo', true)
+      .gte('fecha', inicio)
+      .lte('fecha', fin)
+      .then(({ count }) => setSancionesActivas(count ?? 0))
+
+    supabase
+      .from('solicitudes_vacaciones')
+      .select('id', { count: 'exact', head: true })
+      .eq('estado', 'pendiente')
+      .then(({ count }) => setVacPendientes(count ?? 0))
+  }, [])
+
+  async function cerrarSesion() {
+    await supabaseAuth.auth.signOut()
+    document.cookie = 'user_rol=; path=/; max-age=0'
+    router.push('/login')
+    router.refresh()
+  }
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-60 bg-[#1A1A1A] flex flex-col">
@@ -132,10 +214,27 @@ export default function Sidebar() {
           items={finanzasItems}
           prefijo="/finanzas"
         />
+
+        <SeccionColapsable
+          icono={Users2}
+          label="RRHH"
+          items={rrhhItems}
+          prefijo="/rrhh"
+          badgeRojo={bajas}
+          badgeAmarillo={vacaciones}
+          badgeNaranja={sancionesActivas + vacPendientes}
+        />
       </nav>
 
-      <div className="px-5 py-4 border-t border-white/10">
-        <p className="text-xs text-white/30">SOFI Pinomonotano</p>
+      <div className="px-3 py-3 border-t border-white/10 space-y-0.5">
+        <p className="text-xs text-white/30 px-2 pb-1">SOFI Pinomonotano</p>
+        <button
+          onClick={cerrarSesion}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-white/40 hover:bg-white/10 hover:text-white transition-colors"
+        >
+          <LogOut size={15} />
+          Cerrar sesión
+        </button>
       </div>
     </aside>
   )

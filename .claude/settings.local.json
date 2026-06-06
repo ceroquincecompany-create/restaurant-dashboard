@@ -12,7 +12,13 @@
       "Bash(curl -s http://localhost:3000/locales)",
       "Bash(curl -s http://localhost:3000/informes)",
       "Bash(curl -s http://localhost:3000/locales/1 -o /dev/null -w \"%{http_code}\")",
-      "Bash(curl -s http://localhost:3000/informes -o /dev/null -w \" %{http_code}\")"
+      "Bash(curl -s http://localhost:3000/informes -o /dev/null -w \" %{http_code}\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/rrhh/equipo)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000/rrhh/sanciones)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000/rrhh/incentivos)",
+      "Bash(npx playwright *)",
+      "Bash(node -e ' *)"
     ]
   }
 }

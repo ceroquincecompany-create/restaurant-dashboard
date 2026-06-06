@@ -247,3 +247,187 @@ CREATE POLICY "Lectura pública escandallos_resumen" ON escandallos_resumen FOR 
 CREATE POLICY "Inserción escandallos_resumen" ON escandallos_resumen FOR INSERT WITH CHECK (true);
 CREATE POLICY "Actualización escandallos_resumen" ON escandallos_resumen FOR UPDATE USING (true);
 CREATE POLICY "Eliminación escandallos_resumen" ON escandallos_resumen FOR DELETE USING (true);
+
+-- ──────────────────────────────────────────────────────────────
+-- RRHH
+-- ──────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS empleados (
+  id BIGSERIAL PRIMARY KEY,
+  nombre TEXT NOT NULL,
+  puesto TEXT NOT NULL DEFAULT 'Sala',
+  local_id BIGINT REFERENCES locales(id),
+  horas_contrato NUMERIC NOT NULL DEFAULT 40,
+  salario_bruto NUMERIC,
+  coste_empresa_pct NUMERIC NOT NULL DEFAULT 1.31,
+  fecha_inicio DATE,
+  estado TEXT NOT NULL DEFAULT 'activo' CHECK (estado IN ('activo', 'baja', 'vacaciones')),
+  iban TEXT,
+  nss TEXT,
+  email_acceso TEXT,
+  notas TEXT,
+  activo BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS turnos (
+  id BIGSERIAL PRIMARY KEY,
+  empleado_id BIGINT NOT NULL REFERENCES empleados(id) ON DELETE CASCADE,
+  fecha DATE NOT NULL,
+  tipo_turno TEXT NOT NULL,
+  hora_inicio TIME,
+  hora_fin TIME,
+  notas TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS fichajes (
+  id BIGSERIAL PRIMARY KEY,
+  empleado_id BIGINT NOT NULL REFERENCES empleados(id) ON DELETE CASCADE,
+  fecha DATE NOT NULL,
+  hora_entrada TIME,
+  hora_salida TIME,
+  horas_total NUMERIC,
+  horas_nocturnas NUMERIC,
+  horas_extra NUMERIC,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE empleados ENABLE ROW LEVEL SECURITY;
+ALTER TABLE turnos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fichajes ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Lectura pública empleados"  ON empleados FOR SELECT USING (true);
+CREATE POLICY "Inserción empleados"        ON empleados FOR INSERT WITH CHECK (true);
+CREATE POLICY "Actualización empleados"    ON empleados FOR UPDATE USING (true);
+CREATE POLICY "Eliminación empleados"      ON empleados FOR DELETE USING (true);
+
+-- ──────────────────────────────────────────────────────────────
+-- SANCIONES Y AVISOS
+-- ──────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS sanciones (
+  id BIGSERIAL PRIMARY KEY,
+  empleado_id BIGINT NOT NULL REFERENCES empleados(id) ON DELETE CASCADE,
+  tipo TEXT NOT NULL CHECK (tipo IN ('aviso_verbal','amonestacion_escrita','sancion_grave','sancion_muy_grave')),
+  fecha DATE NOT NULL,
+  descripcion TEXT NOT NULL,
+  firmado BOOLEAN NOT NULL DEFAULT false,
+  notas TEXT,
+  activo BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE sanciones ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Lectura pública sanciones"  ON sanciones FOR SELECT USING (true);
+CREATE POLICY "Inserción sanciones"        ON sanciones FOR INSERT WITH CHECK (true);
+CREATE POLICY "Actualización sanciones"    ON sanciones FOR UPDATE USING (true);
+CREATE POLICY "Eliminación sanciones"      ON sanciones FOR DELETE USING (true);
+
+-- ──────────────────────────────────────────────────────────────
+-- INCENTIVOS
+-- ──────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS planes_incentivo (
+  id BIGSERIAL PRIMARY KEY,
+  nombre TEXT NOT NULL,
+  tipo TEXT NOT NULL CHECK (tipo IN ('encargado','staff')),
+  local_id BIGINT REFERENCES locales(id),
+  trimestre INTEGER NOT NULL CHECK (trimestre BETWEEN 1 AND 4),
+  año INTEGER NOT NULL,
+  vigencia_inicio DATE,
+  vigencia_fin DATE,
+  importe_base NUMERIC,
+  pct_facturacion NUMERIC,
+  kpis JSONB NOT NULL DEFAULT '[]',
+  clausulas JSONB NOT NULL DEFAULT '[]',
+  activo BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(tipo, local_id, trimestre, año)
+);
+
+CREATE TABLE IF NOT EXISTS incentivos_empleado (
+  id BIGSERIAL PRIMARY KEY,
+  empleado_id BIGINT NOT NULL REFERENCES empleados(id) ON DELETE CASCADE,
+  plan_id BIGINT NOT NULL REFERENCES planes_incentivo(id) ON DELETE CASCADE,
+  trimestre INTEGER NOT NULL,
+  año INTEGER NOT NULL,
+  dias_efectivos INTEGER,
+  dias_periodo INTEGER,
+  bono_calculado NUMERIC,
+  estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente','activado','pagado')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(empleado_id, trimestre, año)
+);
+
+ALTER TABLE planes_incentivo ENABLE ROW LEVEL SECURITY;
+ALTER TABLE incentivos_empleado ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Lectura pública planes_incentivo"       ON planes_incentivo FOR SELECT USING (true);
+CREATE POLICY "Inserción planes_incentivo"             ON planes_incentivo FOR INSERT WITH CHECK (true);
+CREATE POLICY "Actualización planes_incentivo"         ON planes_incentivo FOR UPDATE USING (true);
+CREATE POLICY "Eliminación planes_incentivo"           ON planes_incentivo FOR DELETE USING (true);
+
+CREATE POLICY "Lectura pública incentivos_empleado"    ON incentivos_empleado FOR SELECT USING (true);
+CREATE POLICY "Inserción incentivos_empleado"          ON incentivos_empleado FOR INSERT WITH CHECK (true);
+CREATE POLICY "Actualización incentivos_empleado"      ON incentivos_empleado FOR UPDATE USING (true);
+CREATE POLICY "Eliminación incentivos_empleado"        ON incentivos_empleado FOR DELETE USING (true);
+
+-- Planes iniciales Q2 2026 (vigencia desde 1 Mayo)
+INSERT INTO planes_incentivo (nombre, tipo, local_id, trimestre, año, vigencia_inicio, vigencia_fin, importe_base, pct_facturacion, kpis, clausulas)
+VALUES
+(
+  'Plan Encargado Q2 2026', 'encargado',
+  (SELECT id FROM locales WHERE nombre ILIKE '%pinomonotano%' LIMIT 1),
+  2, 2026, '2026-05-01', '2026-06-30', 400, NULL,
+  '[
+    {"nombre":"Reseñas Google","peso":0.20,"objetivo":4.3,"tipo":"mayor_igual","unidad":"★","descripcion":"Nota media Google (mín 30 reseñas/mes)","valor_real":null},
+    {"nombre":"Coste Personal","peso":0.20,"objetivo":28,"tipo":"menor_igual","unidad":"%","descripcion":"% coste personal sobre ventas","valor_real":null},
+    {"nombre":"Ticket Medio","peso":0.30,"objetivo":16,"tipo":"mayor_igual","unidad":"€","descripcion":"Ticket medio trimestral","valor_real":null},
+    {"nombre":"Coste Producto","peso":0.30,"objetivo":30,"tipo":"menor_igual","unidad":"%","descripcion":"% food cost sobre ventas","valor_real":null}
+  ]',
+  '[
+    {"id":"ebitda","nombre":"EBITDA ≥ 90% presupuesto","valor":null},
+    {"id":"auditoria","nombre":"Auditoría interna ≥ 90%","valor":null},
+    {"id":"prorrateo","nombre":"Prorrateo por días efectivos","informativa":true},
+    {"id":"confidencialidad","nombre":"Confidencialidad","informativa":true}
+  ]'
+),
+(
+  'Plan Staff Q2 2026', 'staff',
+  (SELECT id FROM locales WHERE nombre ILIKE '%pinomonotano%' LIMIT 1),
+  2, 2026, '2026-05-01', '2026-06-30', NULL, 1.5,
+  '[
+    {"nombre":"Reseñas Google","peso":0.30,"objetivo":4.3,"tipo":"mayor_igual","unidad":"★","descripcion":"Nota media Google (mín 30 reseñas/mes)","valor_real":null},
+    {"nombre":"Tiempo Preparación","peso":0.20,"objetivo":10,"tipo":"menor_igual","unidad":"min","descripcion":"Tiempo medio de preparación (media trimestral)","valor_real":null},
+    {"nombre":"Ticket Medio","peso":0.30,"objetivo":16,"tipo":"mayor_igual","unidad":"€","descripcion":"Ticket medio trimestral","valor_real":null},
+    {"nombre":"Coste Producto","peso":0.20,"objetivo":30,"tipo":"menor_igual","unidad":"%","descripcion":"% food cost sobre ventas","valor_real":null}
+  ]',
+  '[
+    {"id":"ebitda","nombre":"EBITDA ≥ 90% presupuesto","valor":null},
+    {"id":"auditoria","nombre":"Auditoría interna ≥ 90%","valor":null},
+    {"id":"prorrateo","nombre":"Prorrateo por días efectivos","informativa":true},
+    {"id":"confidencialidad","nombre":"Confidencialidad","informativa":true}
+  ]'
+)
+ON CONFLICT (tipo, local_id, trimestre, año) DO NOTHING;
+
+CREATE POLICY "Lectura pública turnos"     ON turnos FOR SELECT USING (true);
+CREATE POLICY "Inserción turnos"           ON turnos FOR INSERT WITH CHECK (true);
+CREATE POLICY "Actualización turnos"       ON turnos FOR UPDATE USING (true);
+CREATE POLICY "Eliminación turnos"         ON turnos FOR DELETE USING (true);
+
+CREATE POLICY "Lectura pública fichajes"   ON fichajes FOR SELECT USING (true);
+CREATE POLICY "Inserción fichajes"         ON fichajes FOR INSERT WITH CHECK (true);
+CREATE POLICY "Actualización fichajes"     ON fichajes FOR UPDATE USING (true);
+CREATE POLICY "Eliminación fichajes"       ON fichajes FOR DELETE USING (true);
+
+-- Empleados iniciales SOFI Pinomonotano
+INSERT INTO empleados (nombre, puesto, local_id, horas_contrato, estado) VALUES
+  ('Álvaro Torralbo Rete',     'Sala',   (SELECT id FROM locales WHERE nombre ILIKE '%pinomonotano%' LIMIT 1), 24, 'baja'),
+  ('Celeste Santos Garzón',    'Sala',   (SELECT id FROM locales WHERE nombre ILIKE '%pinomonotano%' LIMIT 1), 38, 'baja'),
+  ('Abdelkader Khedim',        'Cocina', (SELECT id FROM locales WHERE nombre ILIKE '%pinomonotano%' LIMIT 1), 40, 'activo'),
+  ('Eva María Caballero Costa','Sala',   (SELECT id FROM locales WHERE nombre ILIKE '%pinomonotano%' LIMIT 1), 29, 'activo'),
+  ('Sergio Hidalgo Lorca',     'Sala',   (SELECT id FROM locales WHERE nombre ILIKE '%pinomonotano%' LIMIT 1), 30, 'activo'),
+  ('Raúl Benavente Rossi',     'Sala',   (SELECT id FROM locales WHERE nombre ILIKE '%pinomonotano%' LIMIT 1), 15, 'activo')
+ON CONFLICT DO NOTHING;
