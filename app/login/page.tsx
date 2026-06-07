@@ -46,7 +46,7 @@ function LoginForm() {
     <div className="min-h-screen bg-[#1A1A1A] flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-8">
-          <img src="/logo.jpg" alt="SOFI" className="h-20 w-20 rounded-2xl object-contain bg-white p-1.5 mb-4" />
+          <img src="/favicon.png" alt="SOFI" className="h-20 w-20 rounded-2xl object-contain bg-white p-1.5 mb-4" />
           <h1 className="text-2xl font-bold text-white tracking-wide">SOFI</h1>
           <p className="text-sm text-white/40 mt-1">Panel de gestión</p>
         </div>
