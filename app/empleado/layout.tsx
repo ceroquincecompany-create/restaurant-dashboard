@@ -2,16 +2,27 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Home, CalendarDays, Clock, Umbrella, Package, LogOut } from 'lucide-react'
+import { Home, CalendarDays, Clock, Umbrella, Package, LogOut, Wrench, ShoppingCart } from 'lucide-react'
 import { supabaseAuth } from '@/lib/supabase-browser'
 import { useEmpleadoActual } from '@/lib/useEmpleado'
 
-const nav = [
-  { href: '/empleado/inicio',      icono: Home,         label: 'Inicio' },
-  { href: '/empleado/horario',     icono: CalendarDays,  label: 'Horario' },
+const navCompleto = [
+  { href: '/empleado/inicio',      icono: Home,          label: 'Inicio' },
+  { href: '/empleado/horario',     icono: CalendarDays,   label: 'Horario' },
+  { href: '/empleado/fichaje',     icono: Clock,          label: 'Fichaje' },
+  { href: '/empleado/operaciones', icono: Wrench,         label: 'Operaciones' },
+  { href: '/empleado/pedidos',     icono: ShoppingCart,   label: 'Pedidos' },
+  { href: '/empleado/vacaciones',  icono: Umbrella,       label: 'Vacaciones' },
+  { href: '/empleado/inventario',  icono: Package,        label: 'Inventario' },
+]
+
+// Los 5 más usados en la bottom nav móvil
+const navMovil = [
+  { href: '/empleado/inicio',      icono: Home,          label: 'Inicio' },
   { href: '/empleado/fichaje',     icono: Clock,         label: 'Fichaje' },
-  { href: '/empleado/vacaciones',  icono: Umbrella,      label: 'Vacaciones' },
-  { href: '/empleado/inventario',  icono: Package,       label: 'Inventario' },
+  { href: '/empleado/operaciones', icono: Wrench,        label: 'Ops' },
+  { href: '/empleado/pedidos',     icono: ShoppingCart,  label: 'Pedidos' },
+  { href: '/empleado/horario',     icono: CalendarDays,  label: 'Horario' },
 ]
 
 export default function EmpleadoLayout({ children }: { children: React.ReactNode }) {
@@ -28,7 +39,7 @@ export default function EmpleadoLayout({ children }: { children: React.ReactNode
   return (
     <div className="flex min-h-screen">
 
-      {/* ── Sidebar desktop (md+) ─────────────────────────────── */}
+      {/* ── Sidebar desktop (md+) ─────────────────────────── */}
       <aside className="hidden md:flex fixed left-0 top-0 h-screen w-56 bg-[#1A1A1A] flex-col z-40">
         <div className="px-5 py-5 border-b border-white/10">
           <div className="flex items-center gap-3">
@@ -42,9 +53,9 @@ export default function EmpleadoLayout({ children }: { children: React.ReactNode
           </div>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-0.5">
-          {nav.map(({ href, icono: Icono, label }) => {
-            const activo = pathname === href
+        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+          {navCompleto.map(({ href, icono: Icono, label }) => {
+            const activo = pathname === href || pathname.startsWith(href + '/')
             return (
               <Link
                 key={href}
@@ -74,15 +85,15 @@ export default function EmpleadoLayout({ children }: { children: React.ReactNode
         </div>
       </aside>
 
-      {/* ── Contenido principal ──────────────────────────────── */}
+      {/* ── Contenido principal ──────────────────────────── */}
       <main className="flex-1 min-w-0 md:ml-56 min-h-screen bg-gray-50 pb-20 md:pb-0 overflow-x-hidden">
         {children}
       </main>
 
-      {/* ── Bottom navigation móvil (<md) ─────────────────────── */}
+      {/* ── Bottom navigation móvil (<md) ────────────────── */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-[0_-2px_12px_rgba(0,0,0,0.06)]">
         <div className="flex items-stretch justify-around h-16">
-          {nav.map(({ href, icono: Icono, label }) => {
+          {navMovil.map(({ href, icono: Icono, label }) => {
             const activo = pathname === href || pathname.startsWith(href + '/')
             return (
               <Link
@@ -92,7 +103,7 @@ export default function EmpleadoLayout({ children }: { children: React.ReactNode
                   activo ? 'text-[#F5B731]' : 'text-gray-400 active:text-gray-600'
                 }`}
               >
-                <Icono size={24} strokeWidth={activo ? 2.5 : 1.8} />
+                <Icono size={22} strokeWidth={activo ? 2.5 : 1.8} />
                 <span className={`text-[10px] font-semibold leading-none ${activo ? 'text-[#F5B731]' : 'text-gray-400'}`}>
                   {label}
                 </span>

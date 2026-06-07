@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import type { Fichaje, Turno } from '@/lib/supabase'
 import { useEmpleadoActual } from '@/lib/useEmpleado'
-import { RefreshCw, MapPin, Clock, CalendarDays, Umbrella, AlertCircle } from 'lucide-react'
+import { RefreshCw, MapPin, Clock, CalendarDays, Umbrella, AlertCircle, Bell, Thermometer, Sparkles, ChevronRight } from 'lucide-react'
 
 // Coordenadas SOFI Pinomonotano — Calle Estibadores 24-25, 41015 Sevilla
 const LOCAL_LAT = 37.3956
@@ -42,12 +43,22 @@ export default function PaginaInicio() {
   const [fichando, setFichando] = useState(false)
   const [geoStatus, setGeoStatus] = useState<'checking' | 'ok' | 'far' | 'error' | 'denied'>('checking')
   const [distancia, setDistancia] = useState<number | null>(null)
+  // Badges de alertas operacionales
+  const [avisosActivos, setAvisosActivos] = useState(0)
+  const [tempMañanaPendiente, setTempMañanaPendiente] = useState(false)
+  const [tempNochePendiente, setTempNochePendiente] = useState(false)
+  const [limpiezasPendientes, setLimpiezasPendientes] = useState(0)
 
   const today = new Date().toISOString().split('T')[0]
 
   const cargarDatos = useCallback(async () => {
     if (!empleado) return
     const añoActual = new Date().getFullYear()
+    const localId = empleado.local_id ?? 1
+    const ahora = new Date()
+    const horaActualNum = ahora.getHours()
+    const minutoActual = ahora.getMinutes()
+
     const [{ data: fich }, { data: prox }, { data: sols }] = await Promise.all([
       supabase.from('fichajes').select('*').eq('empleado_id', empleado.id).eq('fecha', today).maybeSingle(),
       supabase.from('turnos').select('*').eq('empleado_id', empleado.id).gte('fecha', today).order('fecha').order('hora_inicio').limit(1).maybeSingle(),
@@ -57,6 +68,20 @@ export default function PaginaInicio() {
     setProximoTurno(prox ?? null)
     const usados = (sols ?? []).reduce((s, r) => s + r.dias, 0)
     setDiasRestantes(23 - usados)
+
+    // Badges operacionales
+    const [{ count: avisos }, { count: tempMañana }, { count: tempNoche }, { data: limpiezasHoy }] = await Promise.all([
+      supabase.from('avisos_equipo').select('id', { count: 'exact', head: true }).eq('activo', true).eq('local_id', localId),
+      supabase.from('temperaturas').select('id', { count: 'exact', head: true }).eq('turno', 'mañana').gte('fecha', `${today}T00:00:00`).lte('fecha', `${today}T23:59:59`).eq('local_id', localId),
+      supabase.from('temperaturas').select('id', { count: 'exact', head: true }).eq('turno', 'noche').gte('fecha', `${today}T00:00:00`).lte('fecha', `${today}T23:59:59`).eq('local_id', localId),
+      supabase.from('limpiezas').select('tarea').eq('fecha', today).eq('local_id', localId),
+    ])
+    setAvisosActivos(avisos ?? 0)
+    setTempMañanaPendiente(horaActualNum >= 11 && (tempMañana ?? 0) === 0)
+    setTempNochePendiente((horaActualNum > 22 || (horaActualNum === 22 && minutoActual >= 30)) && (tempNoche ?? 0) === 0)
+    const tareasCompletadas = new Set((limpiezasHoy ?? []).map((r: any) => r.tarea))
+    const DIARIAS = ['Utensilios cocina','Superficies cocina','Superficies horizontales','Superficies verticales','Baños']
+    setLimpiezasPendientes(DIARIAS.filter(t => !tareasCompletadas.has(t)).length)
   }, [empleado, today])
 
   useEffect(() => {
@@ -128,6 +153,40 @@ export default function PaginaInicio() {
           {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
         </p>
       </div>
+
+      {/* ── Banners de alertas operacionales ── */}
+      {(avisosActivos > 0 || tempMañanaPendiente || tempNochePendiente || limpiezasPendientes > 0) && (
+        <div className="space-y-2 mb-4">
+          {avisosActivos > 0 && (
+            <Link href="/empleado/operaciones" className="flex items-center gap-3 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 active:scale-[0.98] transition-all">
+              <Bell size={18} className="text-rose-500 flex-shrink-0" />
+              <span className="text-base font-semibold text-rose-700 flex-1">{avisosActivos} aviso{avisosActivos !== 1 ? 's' : ''} activo{avisosActivos !== 1 ? 's' : ''}</span>
+              <ChevronRight size={16} className="text-rose-400" />
+            </Link>
+          )}
+          {tempMañanaPendiente && (
+            <Link href="/empleado/operaciones" className="flex items-center gap-3 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 active:scale-[0.98] transition-all">
+              <Thermometer size={18} className="text-orange-500 flex-shrink-0" />
+              <span className="text-base font-semibold text-orange-700 flex-1">Temperatura de mañana pendiente</span>
+              <ChevronRight size={16} className="text-orange-400" />
+            </Link>
+          )}
+          {tempNochePendiente && (
+            <Link href="/empleado/operaciones" className="flex items-center gap-3 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 active:scale-[0.98] transition-all">
+              <Thermometer size={18} className="text-orange-500 flex-shrink-0" />
+              <span className="text-base font-semibold text-orange-700 flex-1">Temperatura de noche pendiente</span>
+              <ChevronRight size={16} className="text-orange-400" />
+            </Link>
+          )}
+          {limpiezasPendientes > 0 && (
+            <Link href="/empleado/operaciones" className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 active:scale-[0.98] transition-all">
+              <Sparkles size={18} className="text-amber-500 flex-shrink-0" />
+              <span className="text-base font-semibold text-amber-700 flex-1">{limpiezasPendientes} limpieza{limpiezasPendientes !== 1 ? 's' : ''} diaria{limpiezasPendientes !== 1 ? 's' : ''} pendiente{limpiezasPendientes !== 1 ? 's' : ''}</span>
+              <ChevronRight size={16} className="text-amber-400" />
+            </Link>
+          )}
+        </div>
+      )}
 
       {/* Ubicación */}
       {empleado?.sin_restriccion_geo ? (

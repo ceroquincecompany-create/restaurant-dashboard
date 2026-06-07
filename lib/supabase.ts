@@ -157,11 +157,66 @@ export type Temperatura = {
   local_id: number | null
   empleado_nombre: string
   fecha: string
+  turno: 'mañana' | 'noche' | null
   mesa_fria_1: number | null
   mesa_fria_2: number | null
   mesa_fria_3: number | null
   congelador_4: number | null
+  mesa_fria_5: number | null
+  nevera_6: number | null
   notas: string | null
+  created_at: string
+}
+
+export type AvisoEquipo = {
+  id: number
+  local_id: number | null
+  empleado_nombre: string
+  categoria: string
+  descripcion: string
+  activo: boolean
+  resuelto_por: string | null
+  fecha_resolucion: string | null
+  created_at: string
+}
+
+export type PedidoProveedor = {
+  id: number
+  local_id: number | null
+  empleado_nombre: string
+  proveedor_id: number | null
+  estado: 'pendiente' | 'confirmado' | 'recibido' | 'cancelado'
+  notas: string | null
+  created_at: string
+}
+
+export type PedidoLinea = {
+  id: number
+  pedido_id: number
+  ingrediente_id: number | null
+  cantidad_pedida: number
+  unidad: string | null
+  precio_unitario: number | null
+  created_at: string
+}
+
+export type RecepcionPedido = {
+  id: number
+  pedido_id: number
+  empleado_nombre: string
+  fecha_recepcion: string
+  notas: string | null
+  created_at: string
+}
+
+export type RecepcionLinea = {
+  id: number
+  recepcion_id: number
+  ingrediente_id: number | null
+  cantidad_pedida: number
+  cantidad_recibida: number
+  precio_real: number | null
+  diferencia: number | null
   created_at: string
 }
 

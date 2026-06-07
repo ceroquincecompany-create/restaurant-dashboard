@@ -8,7 +8,7 @@ import {
   TrendingUp, ChevronDown, FileText, PlusSquare, Target, Heart,
   Package, BookOpen, Layers, Truck, LogOut,
   Users2, Users, CalendarDays, ClipboardList, UserCircle, Wallet,
-  ShieldAlert, Trophy, Wrench, Trash2, Thermometer, Sparkles, ClipboardCheck,
+  ShieldAlert, Trophy, Wrench, Trash2, Thermometer, Sparkles, ClipboardCheck, ShoppingCart,
 } from 'lucide-react'
 import { supabaseAuth } from '@/lib/supabase-browser'
 import { supabase } from '@/lib/supabase'
@@ -33,10 +33,11 @@ const finanzasItems = [
 ]
 
 const operacionesItems = [
-  { href: '/operaciones/mermas', icono: Trash2, label: 'Mermas' },
   { href: '/operaciones/temperaturas', icono: Thermometer, label: 'Temperaturas' },
   { href: '/operaciones/limpiezas', icono: Sparkles, label: 'Limpiezas' },
+  { href: '/operaciones/mermas', icono: Trash2, label: 'Mermas' },
   { href: '/operaciones/appcc', icono: ClipboardCheck, label: 'Visita APPCC' },
+  { href: '/operaciones/pedidos', icono: ShoppingCart, label: 'Pedidos' },
 ]
 
 const rrhhItems = [
