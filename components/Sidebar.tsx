@@ -9,7 +9,7 @@ import {
   Package, BookOpen, Layers, Truck, LogOut,
   Users2, Users, CalendarDays, ClipboardList, UserCircle, Wallet,
   ShieldAlert, Trophy, Wrench, Trash2, Thermometer, Sparkles, ClipboardCheck, ShoppingCart,
-  ShoppingBag, Archive, ReceiptText,
+  ShoppingBag, Archive, ReceiptText, Link2,
 } from 'lucide-react'
 import { supabaseAuth } from '@/lib/supabase-browser'
 import { supabase } from '@/lib/supabase'
@@ -38,6 +38,7 @@ const comprasItems = [
   { href: '/compras/entregas',   icono: Truck,         label: 'Entregas' },
   { href: '/compras/inventario', icono: Archive,       label: 'Inventario Local' },
   { href: '/compras/total',      icono: ReceiptText,   label: 'Total Compras' },
+  { href: '/compras/vincular',   icono: Link2,         label: 'Vincular Proveedores' },
 ]
 
 const operacionesItems = [
