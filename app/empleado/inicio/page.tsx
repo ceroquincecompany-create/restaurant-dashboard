@@ -8,9 +8,9 @@ import { useEmpleadoActual } from '@/lib/useEmpleado'
 import { RefreshCw, MapPin, Clock, CalendarDays, Umbrella, AlertCircle, Bell, Thermometer, Sparkles, ChevronRight } from 'lucide-react'
 
 // Coordenadas SOFI Pinomonotano — Calle Estibadores 24-25, 41015 Sevilla
-const LOCAL_LAT = 37.3956
-const LOCAL_LNG = -5.9845
-const RADIO_M = 500
+const LOCAL_LAT = 37.42296249221703
+const LOCAL_LNG = -5.965540822072279
+const RADIO_M = 200
 
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000
