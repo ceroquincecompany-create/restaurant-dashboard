@@ -371,16 +371,20 @@ export default function PaginaEmpleadoPedidos() {
             </div>
           )}
 
-          {/* Notas */}
-          {provSelId && ingredientes.length > 0 && (
+          {/* Artículos adicionales / notas */}
+          {provSelId && (
             <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">Notas (opcional)</label>
-              <input
-                className="w-full px-4 py-3 text-base border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#F5B731]"
-                placeholder="Instrucciones de entrega, urgencia..."
+              <label className="block text-sm font-medium text-gray-600 mb-1">
+                Artículos adicionales y notas
+              </label>
+              <textarea
+                className="w-full px-4 py-3 text-base border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#F5B731] resize-none"
+                rows={3}
+                placeholder={`Productos no listados:\nEj: Servilletas x5 bolsas\nEj: Bolsas de basura 50L x3\n\nTambién puedes añadir instrucciones de entrega.`}
                 value={notas}
                 onChange={e => setNotas(e.target.value)}
               />
+              <p className="text-xs text-gray-400 mt-1">Úsalo para pedir artículos que no están en el catálogo.</p>
             </div>
           )}
 

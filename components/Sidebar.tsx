@@ -9,6 +9,7 @@ import {
   Package, BookOpen, Layers, Truck, LogOut,
   Users2, Users, CalendarDays, ClipboardList, UserCircle, Wallet,
   ShieldAlert, Trophy, Wrench, Trash2, Thermometer, Sparkles, ClipboardCheck, ShoppingCart,
+  ShoppingBag, Archive, ReceiptText,
 } from 'lucide-react'
 import { supabaseAuth } from '@/lib/supabase-browser'
 import { supabase } from '@/lib/supabase'
@@ -30,6 +31,13 @@ const finanzasItems = [
   { href: '/finanzas/entrada', icono: PlusSquare, label: 'Entrada de Datos' },
   { href: '/finanzas/presupuesto', icono: Target, label: 'Presupuesto' },
   { href: '/finanzas/salud', icono: Heart, label: 'Salud Financiera' },
+]
+
+const comprasItems = [
+  { href: '/compras/pedidos',    icono: ShoppingCart,  label: 'Pedidos Proveedor' },
+  { href: '/compras/entregas',   icono: Truck,         label: 'Entregas' },
+  { href: '/compras/inventario', icono: Archive,       label: 'Inventario Local' },
+  { href: '/compras/total',      icono: ReceiptText,   label: 'Total Compras' },
 ]
 
 const operacionesItems = [
@@ -221,6 +229,13 @@ export default function Sidebar() {
           label="Finanzas"
           items={finanzasItems}
           prefijo="/finanzas"
+        />
+
+        <SeccionColapsable
+          icono={ShoppingBag}
+          label="Compras"
+          items={comprasItems}
+          prefijo="/compras"
         />
 
         <SeccionColapsable
