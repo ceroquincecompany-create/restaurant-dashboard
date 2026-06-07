@@ -22,15 +22,24 @@ export async function middleware(request: NextRequest) {
   )
 
   const { data: { user } } = await supabase.auth.getUser()
-  const pathname = request.nextUrl.pathname
+  const { pathname, searchParams } = request.nextUrl
   const isLoginPage = pathname.startsWith('/login')
   const isEmpleadoRoute = pathname.startsWith('/empleado')
+  const rol = request.cookies.get('user_rol')?.value
 
-  // /login is always accessible
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`[MW] ${pathname} | user=${!!user} | rol=${rol ?? 'none'} | isLogin=${isLoginPage} | isEmpleado=${isEmpleadoRoute}`)
+  }
+
+  // ── 1. /login siempre accesible ───────────────────────────────
   if (isLoginPage) {
     if (user) {
-      const rol = request.cookies.get('user_rol')?.value
-      if (!rol) return supabaseResponse // cookie missing → let them re-auth
+      // Si venimos aquí con ?error (ej. restricción IP desde el server component),
+      // quedarse en /login — redirigir sería bucle infinito con (admin)/layout.tsx.
+      if (searchParams.has('error')) return supabaseResponse
+      // Sin cookie de rol → dejar re-autenticar
+      if (!rol) return supabaseResponse
+      // Con cookie → redirigir a su home
       const url = request.nextUrl.clone()
       url.pathname = rol === 'empleado' ? '/empleado/inicio' : '/'
       return NextResponse.redirect(url)
@@ -38,28 +47,35 @@ export async function middleware(request: NextRequest) {
     return supabaseResponse
   }
 
-  // All other routes require a session
+  // ── 2. Sin sesión → /login ────────────────────────────────────
   if (!user) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
-  // Cookie missing → re-authenticate to re-set it
-  const rol = request.cookies.get('user_rol')?.value
+  // ── 3. Rutas /empleado/* ──────────────────────────────────────
+  // Con sesión válida NUNCA redirigir a /login.
+  // Solo bloquear si la cookie dice explícitamente un rol que no es empleado.
+  if (isEmpleadoRoute) {
+    if (rol && rol !== 'empleado') {
+      // Admin intentando rutas de empleado → a su home
+      const url = request.nextUrl.clone()
+      url.pathname = '/'
+      return NextResponse.redirect(url)
+    }
+    return supabaseResponse
+  }
+
+  // ── 4. Rutas admin ────────────────────────────────────────────
+  // Cookie ausente → forzar re-login para regenerarla
   if (!rol) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
-
-  // Route / role access control
-  if (isEmpleadoRoute && rol !== 'empleado') {
-    const url = request.nextUrl.clone()
-    url.pathname = '/'
-    return NextResponse.redirect(url)
-  }
-  if (!isEmpleadoRoute && rol === 'empleado') {
+  // Empleado intentando rutas admin → a su home
+  if (rol === 'empleado') {
     const url = request.nextUrl.clone()
     url.pathname = '/empleado/inicio'
     return NextResponse.redirect(url)

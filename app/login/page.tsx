@@ -40,7 +40,6 @@ function LoginForm() {
     document.cookie = `user_rol=${rol}; path=/; max-age=2592000; SameSite=Lax`
 
     router.push(rol === 'empleado' ? '/empleado/inicio' : '/')
-    router.refresh()
   }
 
   return (
