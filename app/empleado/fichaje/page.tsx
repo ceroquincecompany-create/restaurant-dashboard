@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Fichaje } from '@/lib/supabase'
 import { useEmpleadoActual } from '@/lib/useEmpleado'
-import { MapPin, RefreshCw, Clock, AlertCircle, Navigation } from 'lucide-react'
+import { MapPin, RefreshCw, Clock, AlertCircle, Navigation, LogIn, LogOut, CheckCircle2 } from 'lucide-react'
 
 const LOCAL_LAT = 37.3956
 const LOCAL_LNG = -5.9845
@@ -20,7 +20,7 @@ function haversine(lat1: number, lng1: number, lat2: number, lng2: number): numb
 
 function horaActual(): string {
   const n = new Date()
-  return `${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`
+  return `${String(n.getHours()).padStart(2, '0')}:${String(n.getMinutes()).padStart(2, '0')}`
 }
 
 function calcHoras(entrada: string, salida: string): { total: number; nocturnas: number } {
@@ -84,7 +84,6 @@ export default function PaginaFichaje() {
 
   useEffect(() => { obtenerUbicacion() }, [])
 
-  // If employee has no geo restriction, bypass the check entirely
   useEffect(() => {
     if (empleado?.sin_restriccion_geo) {
       setGeoStatus('ok')
@@ -99,84 +98,171 @@ export default function PaginaFichaje() {
     if (!fichajeHoy) {
       await supabase.from('fichajes').insert({ empleado_id: empleado.id, fecha: today, hora_entrada: hora })
     } else if (!fichajeHoy.hora_salida) {
-      const { total, nocturnas } = fichajeHoy.hora_entrada ? calcHoras(fichajeHoy.hora_entrada, hora) : { total: null, nocturnas: null }
+      const { total, nocturnas } = fichajeHoy.hora_entrada
+        ? calcHoras(fichajeHoy.hora_entrada, hora)
+        : { total: null, nocturnas: null }
       await supabase.from('fichajes').update({ hora_salida: hora, horas_total: total, horas_nocturnas: nocturnas }).eq('id', fichajeHoy.id)
     }
     setFichando(false)
     cargar()
   }
 
-  if (empLoading || loading) return <div className="flex items-center justify-center min-h-screen"><RefreshCw className="animate-spin text-[#F5B731]" size={24} /></div>
+  if (empLoading || loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <RefreshCw className="animate-spin text-[#F5B731]" size={24} />
+      </div>
+    )
+  }
 
   const estadoHoy = !fichajeHoy ? 'sin_fichar' : !fichajeHoy.hora_salida ? 'en_curso' : 'completado'
   const puedefichar = geoStatus === 'ok' && estadoHoy !== 'completado'
-
   const totalMes = fichajes.reduce((s, f) => s + (f.horas_total ?? 0), 0)
   const horasContrato = Number(empleado?.horas_contrato ?? 40) * 4.33
 
+  // ── Clases del círculo según estado ─────────────────────────
+  const circleCls = !puedefichar
+    ? 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none'
+    : estadoHoy === 'sin_fichar'
+    ? 'bg-emerald-500 text-white shadow-emerald-200 shadow-xl active:scale-95'
+    : 'bg-rose-500 text-white shadow-rose-200 shadow-xl active:scale-95'
+
+  // ── Contenido del círculo ────────────────────────────────────
+  function CircleContent() {
+    if (fichando) return (
+      <RefreshCw size={52} className="animate-spin" />
+    )
+    if (estadoHoy === 'completado') return (
+      <>
+        <CheckCircle2 size={52} className="text-emerald-400" />
+        <span className="text-lg font-bold text-emerald-600 mt-1">Completado</span>
+      </>
+    )
+    if (estadoHoy === 'sin_fichar') return (
+      <>
+        <LogIn size={52} />
+        <span className="text-2xl font-black tracking-wide mt-2">ENTRADA</span>
+      </>
+    )
+    return (
+      <>
+        <LogOut size={52} />
+        <span className="text-2xl font-black tracking-wide mt-2">SALIDA</span>
+      </>
+    )
+  }
+
   return (
-    <div className="p-6 max-w-2xl">
-      <div className="mb-5">
+    <div className="px-4 py-5 md:px-6 md:py-6 max-w-2xl">
+
+      {/* ── Título (desktop) ──────────────────────────────── */}
+      <div className="hidden md:block mb-5">
         <h1 className="text-xl font-bold text-gray-900">Fichaje</h1>
         <p className="text-sm text-gray-400 mt-0.5">Control de presencia</p>
       </div>
 
-      {/* Geolocalización */}
+      {/* ── Banner de geolocalización ─────────────────────── */}
       {empleado?.sin_restriccion_geo ? (
-        <div className="rounded-xl p-4 mb-4 bg-amber-50 border border-amber-200">
+        <div className="rounded-xl px-4 py-3 mb-5 bg-amber-50 border border-amber-200">
           <div className="flex items-center gap-3">
-            <MapPin size={20} className="text-amber-600" />
+            <MapPin size={20} className="text-amber-600 flex-shrink-0" />
             <div>
-              <div className="flex items-center gap-2">
-                <p className="text-sm font-semibold text-amber-700">Fichaje habilitado</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-base font-semibold text-amber-700">Fichaje habilitado</p>
                 <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-200 text-amber-800">Modo prueba</span>
               </div>
-              <p className="text-xs text-amber-600">Sin restricción de ubicación para este empleado</p>
+              <p className="text-sm text-amber-600">Sin restricción de ubicación</p>
             </div>
           </div>
         </div>
       ) : (
-        <div className={`rounded-xl p-4 mb-4 ${
+        <div className={`rounded-xl px-4 py-3 mb-5 ${
           geoStatus === 'ok' ? 'bg-emerald-50 border border-emerald-200' :
           geoStatus === 'far' ? 'bg-rose-50 border border-rose-200' :
           'bg-amber-50 border border-amber-200'
         }`}>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <MapPin size={20} className={
-                geoStatus === 'ok' ? 'text-emerald-600' : geoStatus === 'far' ? 'text-rose-600' : 'text-amber-600'
+                geoStatus === 'ok' ? 'text-emerald-600' :
+                geoStatus === 'far' ? 'text-rose-600' : 'text-amber-600'
               } />
               <div>
-                {geoStatus === 'checking' && <p className="text-sm font-medium text-amber-700">Obteniendo ubicación...</p>}
+                {geoStatus === 'checking' && <p className="text-base font-medium text-amber-700">Obteniendo ubicación...</p>}
                 {geoStatus === 'ok' && (
                   <>
-                    <p className="text-sm font-semibold text-emerald-700">En el local</p>
-                    <p className="text-xs text-emerald-600">Estás a {distancia}m — puedes fichar</p>
+                    <p className="text-base font-semibold text-emerald-700">En el local</p>
+                    {distancia !== null && <p className="text-sm text-emerald-600">A {distancia}m — puedes fichar</p>}
                   </>
                 )}
                 {geoStatus === 'far' && (
                   <>
-                    <p className="text-sm font-semibold text-rose-700">Fuera del radio permitido</p>
-                    <p className="text-xs text-rose-600">Estás a {distancia}m — debes estar a menos de {RADIO_M}m para fichar</p>
+                    <p className="text-base font-semibold text-rose-700">Fuera del radio</p>
+                    <p className="text-sm text-rose-600">A {distancia}m — necesitas estar a menos de {RADIO_M}m</p>
                   </>
                 )}
-                {geoStatus === 'denied' && <p className="text-sm font-medium text-amber-700">Permiso de ubicación denegado</p>}
-                {geoStatus === 'error' && <p className="text-sm font-medium text-amber-700">No se pudo obtener la ubicación</p>}
+                {geoStatus === 'denied' && <p className="text-base font-medium text-amber-700">Activa la ubicación</p>}
+                {geoStatus === 'error' && <p className="text-base font-medium text-amber-700">No se pudo obtener la ubicación</p>}
               </div>
             </div>
             <button
               onClick={obtenerUbicacion}
-              className="p-2 rounded-lg hover:bg-white/50 transition-colors"
+              className="p-2.5 rounded-xl bg-white/60 hover:bg-white transition-colors flex-shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
               title="Actualizar ubicación"
             >
-              <Navigation size={16} className="text-gray-500" />
+              <Navigation size={18} className="text-gray-500" />
             </button>
           </div>
         </div>
       )}
 
-      {/* Botón fichar */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-5 text-center">
+      {/* ══════════════════════════════════════════════════════
+          MÓVIL: botón círculo grande
+          ═════════════════════════════════════════════════════ */}
+      <div className="md:hidden flex flex-col items-center mb-6">
+        {/* Estado actual sobre el círculo */}
+        {estadoHoy === 'en_curso' && fichajeHoy?.hora_entrada && (
+          <div className="mb-5 text-center">
+            <p className="text-sm text-gray-400">Entrada registrada</p>
+            <p className="text-3xl font-black text-gray-800 tabular-nums">{fichajeHoy.hora_entrada.slice(0, 5)}</p>
+          </div>
+        )}
+
+        {/* Círculo */}
+        {estadoHoy === 'completado' ? (
+          <div className="w-56 h-56 rounded-full bg-emerald-50 border-4 border-emerald-200 flex flex-col items-center justify-center gap-1">
+            <CheckCircle2 size={56} className="text-emerald-500" />
+            <p className="text-lg font-bold text-emerald-700">Jornada</p>
+            <p className="text-lg font-bold text-emerald-700">completada</p>
+            <p className="text-base text-emerald-600 mt-1">
+              {fichajeHoy?.hora_entrada?.slice(0, 5)} → {fichajeHoy?.hora_salida?.slice(0, 5)}
+            </p>
+            {fichajeHoy?.horas_total != null && (
+              <p className="text-sm font-semibold text-emerald-500">{fichajeHoy.horas_total}h trabajadas</p>
+            )}
+          </div>
+        ) : (
+          <button
+            onClick={fichar}
+            disabled={!puedefichar || fichando}
+            className={`w-56 h-56 rounded-full flex flex-col items-center justify-center transition-all duration-150 ${circleCls}`}
+          >
+            <CircleContent />
+          </button>
+        )}
+
+        {/* Mensaje de error geo bajo el círculo */}
+        {!puedefichar && estadoHoy !== 'completado' && geoStatus !== 'ok' && geoStatus !== 'checking' && (
+          <p className="text-base text-rose-500 mt-4 flex items-center gap-1.5 text-center">
+            <AlertCircle size={16} /> Debes estar en el local
+          </p>
+        )}
+      </div>
+
+      {/* ══════════════════════════════════════════════════════
+          DESKTOP: botón rectangular
+          ═════════════════════════════════════════════════════ */}
+      <div className="hidden md:block bg-white rounded-2xl border border-gray-200 p-6 mb-5 text-center">
         {estadoHoy === 'completado' ? (
           <div>
             <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-3">
@@ -184,16 +270,18 @@ export default function PaginaFichaje() {
             </div>
             <p className="text-base font-bold text-emerald-700">Jornada completada</p>
             <p className="text-sm text-gray-500 mt-1">
-              {fichajeHoy?.hora_entrada?.slice(0,5)} → {fichajeHoy?.hora_salida?.slice(0,5)}
+              {fichajeHoy?.hora_entrada?.slice(0, 5)} → {fichajeHoy?.hora_salida?.slice(0, 5)}
               {fichajeHoy?.horas_total != null && <span className="font-semibold"> · {fichajeHoy.horas_total}h</span>}
-              {(fichajeHoy?.horas_nocturnas ?? 0) > 0 && <span className="text-blue-600"> ({fichajeHoy!.horas_nocturnas}h noct.)</span>}
+              {(fichajeHoy?.horas_nocturnas ?? 0) > 0 && (
+                <span className="text-blue-600"> ({fichajeHoy!.horas_nocturnas}h noct.)</span>
+              )}
             </p>
           </div>
         ) : (
           <div>
             {estadoHoy === 'en_curso' && fichajeHoy?.hora_entrada && (
               <p className="text-sm text-gray-400 mb-3">
-                Entrada registrada: <strong>{fichajeHoy.hora_entrada.slice(0,5)}</strong>
+                Entrada registrada: <strong>{fichajeHoy.hora_entrada.slice(0, 5)}</strong>
               </p>
             )}
             <button
@@ -207,7 +295,8 @@ export default function PaginaFichaje() {
                   : 'bg-gray-100 text-gray-400 cursor-not-allowed'
               }`}
             >
-              {fichando ? <span className="flex items-center justify-center gap-2"><RefreshCw size={18} className="animate-spin" /> Registrando...</span>
+              {fichando
+                ? <span className="flex items-center justify-center gap-2"><RefreshCw size={18} className="animate-spin" /> Registrando...</span>
                 : estadoHoy === 'sin_fichar' ? '▶  FICHAR ENTRADA'
                 : '⏹  FICHAR SALIDA'}
             </button>
@@ -220,50 +309,52 @@ export default function PaginaFichaje() {
         )}
       </div>
 
-      {/* Resumen mes */}
+      {/* ── Resumen mes ───────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3 mb-5">
         <div className="bg-white rounded-xl border border-gray-200 p-4 text-center">
           <p className="text-2xl font-bold text-gray-900">{totalMes.toFixed(1)}h</p>
-          <p className="text-xs text-gray-400 mt-0.5">Horas este mes</p>
+          <p className="text-sm text-gray-400 mt-0.5">Horas este mes</p>
         </div>
         <div className={`rounded-xl border p-4 text-center ${totalMes >= horasContrato ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-gray-200'}`}>
           <p className={`text-2xl font-bold ${totalMes >= horasContrato ? 'text-emerald-700' : 'text-gray-900'}`}>
             {horasContrato.toFixed(0)}h
           </p>
-          <p className={`text-xs mt-0.5 ${totalMes >= horasContrato ? 'text-emerald-500' : 'text-gray-400'}`}>Contrato mensual</p>
+          <p className={`text-sm mt-0.5 ${totalMes >= horasContrato ? 'text-emerald-500' : 'text-gray-400'}`}>
+            Contrato mensual
+          </p>
         </div>
       </div>
 
-      {/* Historial */}
+      {/* ── Historial del mes ─────────────────────────────── */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="px-5 py-3 border-b border-gray-100">
+        <div className="px-4 py-3 border-b border-gray-100">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Fichajes del mes</p>
         </div>
         {fichajes.length === 0 ? (
-          <p className="px-5 py-6 text-sm text-gray-400 text-center">Sin fichajes este mes</p>
+          <p className="px-4 py-6 text-base text-gray-400 text-center">Sin fichajes este mes</p>
         ) : (
           <div className="divide-y divide-gray-50">
             {fichajes.map((f) => (
-              <div key={f.id} className="px-5 py-3 flex items-center justify-between">
+              <div key={f.id} className="px-4 py-3 flex items-center justify-between min-h-[52px]">
                 <div>
-                  <p className="text-sm text-gray-800">
+                  <p className="text-base text-gray-800">
                     {new Date(f.fecha + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })}
                   </p>
-                  <p className="text-xs text-gray-400">
-                    {f.hora_entrada?.slice(0,5) ?? '—'} → {f.hora_salida?.slice(0,5) ?? '—'}
+                  <p className="text-sm text-gray-400">
+                    {f.hora_entrada?.slice(0, 5) ?? '—'} → {f.hora_salida?.slice(0, 5) ?? '—'}
                   </p>
                 </div>
                 <div className="text-right">
                   {f.horas_total != null ? (
-                    <p className="text-sm font-semibold text-gray-800">{f.horas_total}h</p>
+                    <p className="text-base font-semibold text-gray-800">{f.horas_total}h</p>
                   ) : (
-                    <span className="text-xs text-amber-600 font-medium">En curso</span>
+                    <span className="text-sm text-amber-600 font-medium">En curso</span>
                   )}
                   {(f.horas_nocturnas ?? 0) > 0 && (
-                    <p className="text-xs text-blue-600">{f.horas_nocturnas}h noct.</p>
+                    <p className="text-sm text-blue-600">{f.horas_nocturnas}h noct.</p>
                   )}
                   {(f.horas_extra ?? 0) > 0 && (
-                    <p className="text-xs text-amber-600">+{f.horas_extra}h extra</p>
+                    <p className="text-sm text-amber-600">+{f.horas_extra}h extra</p>
                   )}
                 </div>
               </div>

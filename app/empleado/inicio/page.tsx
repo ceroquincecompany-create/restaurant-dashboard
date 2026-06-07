@@ -6,8 +6,9 @@ import type { Fichaje, Turno } from '@/lib/supabase'
 import { useEmpleadoActual } from '@/lib/useEmpleado'
 import { RefreshCw, MapPin, Clock, CalendarDays, Umbrella, AlertCircle } from 'lucide-react'
 
-const LOCAL_LAT = 37.7749
-const LOCAL_LNG = -1.4977
+// Coordenadas SOFI Pinomonotano — Calle Estibadores 24-25, 41015 Sevilla
+const LOCAL_LAT = 37.3956
+const LOCAL_LNG = -5.9845
 const RADIO_M = 500
 
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -31,11 +32,6 @@ function calcHorasTotal(entrada: string, salida: string): number {
   let t = h2 * 60 + m2 - (h1 * 60 + m1)
   if (t < 0) t += 24 * 60
   return Math.round((t / 60) * 100) / 100
-}
-
-const TURNO_LABEL: Record<string, string> = {
-  'Mediodía': 'Mediodía', 'Noche': 'Noche', 'Medio mediodía': 'Medio mediodía',
-  'Vacaciones': 'Vacaciones', 'Baja': 'Baja',
 }
 
 export default function PaginaInicio() {
@@ -80,6 +76,14 @@ export default function PaginaInicio() {
     )
   }, [])
 
+  // Bypass geo check for employees without restriction
+  useEffect(() => {
+    if (empleado?.sin_restriccion_geo) {
+      setGeoStatus('ok')
+      setDistancia(null)
+    }
+  }, [empleado?.sin_restriccion_geo])
+
   async function fichar() {
     if (!empleado || geoStatus !== 'ok') return
     setFichando(true)
@@ -115,74 +119,91 @@ export default function PaginaInicio() {
   const puedefichar = geoStatus === 'ok' && estadoFichaje !== 'completado'
 
   return (
-    <div className="p-6 max-w-2xl">
+    <div className="px-4 py-5 md:px-6 md:py-6 max-w-2xl">
+
       {/* Saludo */}
-      <div className="mb-6">
+      <div className="mb-5">
         <h1 className="text-2xl font-bold text-gray-900">{saludo}, {nombreCorto}</h1>
-        <p className="text-sm text-gray-400 mt-0.5">
+        <p className="text-base text-gray-500 mt-1 capitalize">
           {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
         </p>
       </div>
 
       {/* Ubicación */}
-      <div className={`rounded-xl px-4 py-3 mb-4 flex items-center gap-3 text-sm ${
-        geoStatus === 'ok' ? 'bg-emerald-50 text-emerald-700' :
-        geoStatus === 'far' ? 'bg-rose-50 text-rose-700' :
-        geoStatus === 'checking' ? 'bg-gray-50 text-gray-500' :
-        'bg-amber-50 text-amber-700'
-      }`}>
-        <MapPin size={16} className="flex-shrink-0" />
-        {geoStatus === 'checking' && 'Obteniendo ubicación...'}
-        {geoStatus === 'ok' && `Estás en el local (a ${distancia}m)`}
-        {geoStatus === 'far' && `Estás a ${distancia}m del local — debes estar a menos de ${RADIO_M}m para fichar`}
-        {geoStatus === 'denied' && 'Activa la ubicación para poder fichar'}
-        {geoStatus === 'error' && 'No se pudo obtener la ubicación'}
-      </div>
+      {empleado?.sin_restriccion_geo ? (
+        <div className="rounded-xl px-4 py-3 mb-4 flex items-center gap-3 bg-amber-50 border border-amber-200">
+          <MapPin size={18} className="flex-shrink-0 text-amber-600" />
+          <span className="text-base text-amber-700 font-medium">
+            Fichaje habilitado
+            <span className="ml-2 text-xs font-bold px-1.5 py-0.5 bg-amber-200 text-amber-800 rounded-full">Modo prueba</span>
+          </span>
+        </div>
+      ) : (
+        <div className={`rounded-xl px-4 py-3 mb-4 flex items-center gap-3 text-base ${
+          geoStatus === 'ok' ? 'bg-emerald-50 border border-emerald-200 text-emerald-700' :
+          geoStatus === 'far' ? 'bg-rose-50 border border-rose-200 text-rose-700' :
+          geoStatus === 'checking' ? 'bg-gray-50 border border-gray-200 text-gray-500' :
+          'bg-amber-50 border border-amber-200 text-amber-700'
+        }`}>
+          <MapPin size={18} className="flex-shrink-0" />
+          <span>
+            {geoStatus === 'checking' && 'Obteniendo ubicación...'}
+            {geoStatus === 'ok' && `En el local${distancia !== null ? ` · ${distancia}m` : ''}`}
+            {geoStatus === 'far' && `Estás a ${distancia}m — necesitas estar a menos de ${RADIO_M}m`}
+            {geoStatus === 'denied' && 'Activa la ubicación para poder fichar'}
+            {geoStatus === 'error' && 'No se pudo obtener la ubicación'}
+          </span>
+        </div>
+      )}
 
       {/* Botón FICHAR */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-4 text-center">
+      <div className="bg-white rounded-2xl border border-gray-200 p-5 mb-4">
         {estadoFichaje === 'completado' ? (
-          <div>
-            <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-3">
-              <Clock size={36} className="text-emerald-600" />
+          <div className="flex items-center gap-4 py-2">
+            <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+              <Clock size={28} className="text-emerald-600" />
             </div>
-            <p className="text-lg font-bold text-emerald-700">Jornada completada</p>
-            <p className="text-sm text-gray-400 mt-1">
-              {fichajeHoy?.hora_entrada?.slice(0,5)} → {fichajeHoy?.hora_salida?.slice(0,5)}
-              {fichajeHoy?.horas_total != null && ` · ${fichajeHoy.horas_total}h`}
-            </p>
+            <div>
+              <p className="text-lg font-bold text-emerald-700">Jornada completada</p>
+              <p className="text-base text-gray-500 mt-0.5">
+                {fichajeHoy?.hora_entrada?.slice(0, 5)} → {fichajeHoy?.hora_salida?.slice(0, 5)}
+                {fichajeHoy?.horas_total != null && (
+                  <span className="font-semibold text-gray-700"> · {fichajeHoy.horas_total}h</span>
+                )}
+              </p>
+            </div>
           </div>
         ) : (
           <div>
+            {estadoFichaje === 'en_curso' && fichajeHoy?.hora_entrada && (
+              <p className="text-base text-gray-500 mb-3 text-center">
+                Entrada a las <strong className="text-gray-800">{fichajeHoy.hora_entrada.slice(0, 5)}</strong>
+              </p>
+            )}
             <button
               onClick={fichar}
               disabled={!puedefichar || fichando}
-              className={`w-full py-5 rounded-xl text-lg font-bold transition-all ${
+              className={`w-full min-h-[80px] rounded-xl text-xl font-bold transition-all active:scale-[0.98] ${
                 puedefichar
                   ? estadoFichaje === 'sin_fichar'
-                    ? 'bg-[#F5B731] text-[#1A1A1A] hover:bg-[#e0a820] active:scale-95'
-                    : 'bg-[#1A1A1A] text-white hover:bg-gray-800 active:scale-95'
+                    ? 'bg-[#F5B731] text-[#1A1A1A] hover:bg-[#e0a820]'
+                    : 'bg-[#1A1A1A] text-white hover:bg-gray-800'
                   : 'bg-gray-100 text-gray-400 cursor-not-allowed'
               }`}
             >
               {fichando ? (
                 <span className="flex items-center justify-center gap-2">
-                  <RefreshCw size={20} className="animate-spin" /> Fichando...
+                  <RefreshCw size={22} className="animate-spin" /> Fichando...
                 </span>
               ) : estadoFichaje === 'sin_fichar' ? (
-                '▶ FICHAR ENTRADA'
+                '▶  FICHAR ENTRADA'
               ) : (
-                '⏹ FICHAR SALIDA'
+                '⏹  FICHAR SALIDA'
               )}
             </button>
-            {estadoFichaje === 'en_curso' && fichajeHoy?.hora_entrada && (
-              <p className="text-sm text-gray-400 mt-2">
-                Entrada registrada a las {fichajeHoy.hora_entrada.slice(0, 5)}
-              </p>
-            )}
             {!puedefichar && geoStatus !== 'ok' && geoStatus !== 'checking' && (
-              <p className="text-xs text-rose-500 mt-2 flex items-center justify-center gap-1">
-                <AlertCircle size={13} /> Debes estar en el local para fichar
+              <p className="text-sm text-rose-500 mt-2 flex items-center justify-center gap-1.5">
+                <AlertCircle size={14} /> Debes estar en el local para fichar
               </p>
             )}
           </div>
@@ -190,44 +211,44 @@ export default function PaginaInicio() {
       </div>
 
       {/* Cards info */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-3">
         {/* Próximo turno */}
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <div className="flex items-center gap-2 mb-3">
-            <CalendarDays size={15} className="text-gray-400" />
+            <CalendarDays size={16} className="text-gray-400" />
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Próximo turno</p>
           </div>
           {proximoTurno ? (
             <div>
-              <p className="text-sm font-bold text-gray-900">{proximoTurno.tipo_turno}</p>
-              <p className="text-sm text-gray-600 mt-0.5">
+              <p className="text-base font-bold text-gray-900">{proximoTurno.tipo_turno}</p>
+              <p className="text-base text-gray-600 mt-1">
                 {new Date(proximoTurno.fecha + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })}
               </p>
               {proximoTurno.hora_inicio && (
-                <p className="text-xs text-gray-400 mt-0.5">
+                <p className="text-sm text-gray-400 mt-0.5">
                   {proximoTurno.hora_inicio.slice(0, 5)} → {proximoTurno.hora_fin?.slice(0, 5) ?? '...'}
                 </p>
               )}
             </div>
           ) : (
-            <p className="text-sm text-gray-400">Sin turnos asignados</p>
+            <p className="text-base text-gray-400">Sin turnos</p>
           )}
         </div>
 
         {/* Vacaciones */}
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <div className="flex items-center gap-2 mb-3">
-            <Umbrella size={15} className="text-gray-400" />
+            <Umbrella size={16} className="text-gray-400" />
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Vacaciones</p>
           </div>
           {diasRestantes !== null ? (
             <div>
-              <p className="text-2xl font-bold text-gray-900">{diasRestantes}</p>
-              <p className="text-xs text-gray-400 mt-0.5">días disponibles este año</p>
-              <p className="text-xs text-gray-300 mt-0.5">{23 - diasRestantes} usados de 23</p>
+              <p className="text-3xl font-bold text-gray-900">{diasRestantes}</p>
+              <p className="text-sm text-gray-400 mt-1">días disponibles</p>
+              <p className="text-sm text-gray-300 mt-0.5">{23 - diasRestantes} de 23 usados</p>
             </div>
           ) : (
-            <p className="text-sm text-gray-400">Cargando...</p>
+            <p className="text-base text-gray-400">Cargando...</p>
           )}
         </div>
       </div>
