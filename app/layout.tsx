@@ -9,8 +9,8 @@ export const metadata: Metadata = {
   title: 'SOFI | Panel de Gestión',
   description: 'Panel de gestión SOFI Pinomonotano',
   icons: {
-    icon: '/SOFI LOGO PEQUEÑO S.png',
-    apple: '/SOFI LOGO PEQUEÑO S.png',
+    icon: '/favicon.png',
+    apple: '/favicon.png',
   },
 };
 
