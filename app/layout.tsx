@@ -6,8 +6,12 @@ import AppShell from "@/components/AppShell";
 const geist = Geist({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Dashboard Restaurantes",
-  description: "Gestión de locales y KPIs",
+  title: 'SOFI | Panel de Gestión',
+  description: 'Panel de gestión SOFI Pinomonotano',
+  icons: {
+    icon: '/SOFI LOGO PEQUEÑO S.png',
+    apple: '/SOFI LOGO PEQUEÑO S.png',
+  },
 };
 
 export default function RootLayout({

@@ -78,7 +78,7 @@ export default function PaginaFichaje() {
         setGeoStatus(d <= RADIO_M ? 'ok' : 'far')
       },
       (err) => setGeoStatus(err.code === 1 ? 'denied' : 'error'),
-      { timeout: 10000, maximumAge: 30000 }
+      { timeout: 15000, maximumAge: 0 }
     )
   }
 
@@ -181,38 +181,59 @@ export default function PaginaFichaje() {
           geoStatus === 'far' ? 'bg-rose-50 border border-rose-200' :
           'bg-amber-50 border border-amber-200'
         }`}>
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <MapPin size={20} className={
-                geoStatus === 'ok' ? 'text-emerald-600' :
-                geoStatus === 'far' ? 'text-rose-600' : 'text-amber-600'
-              } />
-              <div>
-                {geoStatus === 'checking' && <p className="text-base font-medium text-amber-700">Obteniendo ubicación...</p>}
-                {geoStatus === 'ok' && (
+          {(geoStatus === 'denied' || geoStatus === 'error') ? (
+            <div className="flex items-start gap-3">
+              <MapPin size={20} className="text-amber-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                {geoStatus === 'denied' ? (
                   <>
-                    <p className="text-base font-semibold text-emerald-700">En el local</p>
-                    {distancia !== null && <p className="text-sm text-emerald-600">A {distancia}m — puedes fichar</p>}
+                    <p className="text-base font-semibold text-amber-700">Ubicación denegada</p>
+                    <p className="text-sm text-amber-600 mt-1">En Chrome Android: toca el candado en la barra de direcciones → Permisos del sitio → Ubicación → Permitir</p>
                   </>
+                ) : (
+                  <p className="text-base font-semibold text-amber-700">No se pudo obtener la ubicación</p>
                 )}
-                {geoStatus === 'far' && (
-                  <>
-                    <p className="text-base font-semibold text-rose-700">Fuera del radio</p>
-                    <p className="text-sm text-rose-600">A {distancia}m — necesitas estar a menos de {RADIO_M}m</p>
-                  </>
-                )}
-                {geoStatus === 'denied' && <p className="text-base font-medium text-amber-700">Activa la ubicación</p>}
-                {geoStatus === 'error' && <p className="text-base font-medium text-amber-700">No se pudo obtener la ubicación</p>}
+                <button
+                  onClick={obtenerUbicacion}
+                  className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-100 text-amber-800 text-sm font-semibold hover:bg-amber-200 active:scale-95 transition-all"
+                >
+                  <Navigation size={14} />
+                  Reintentar ubicación
+                </button>
               </div>
             </div>
-            <button
-              onClick={obtenerUbicacion}
-              className="p-2.5 rounded-xl bg-white/60 hover:bg-white transition-colors flex-shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
-              title="Actualizar ubicación"
-            >
-              <Navigation size={18} className="text-gray-500" />
-            </button>
-          </div>
+          ) : (
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <MapPin size={20} className={
+                  geoStatus === 'ok' ? 'text-emerald-600' :
+                  geoStatus === 'far' ? 'text-rose-600' : 'text-amber-600'
+                } />
+                <div>
+                  {geoStatus === 'checking' && <p className="text-base font-medium text-amber-700">Obteniendo ubicación...</p>}
+                  {geoStatus === 'ok' && (
+                    <>
+                      <p className="text-base font-semibold text-emerald-700">En el local</p>
+                      {distancia !== null && <p className="text-sm text-emerald-600">A {distancia}m — puedes fichar</p>}
+                    </>
+                  )}
+                  {geoStatus === 'far' && (
+                    <>
+                      <p className="text-base font-semibold text-rose-700">Fuera del radio</p>
+                      <p className="text-sm text-rose-600">A {distancia}m — necesitas estar a menos de {RADIO_M}m</p>
+                    </>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={obtenerUbicacion}
+                className="p-2.5 rounded-xl bg-white/60 hover:bg-white transition-colors flex-shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
+                title="Actualizar ubicación"
+              >
+                <Navigation size={18} className="text-gray-500" />
+              </button>
+            </div>
+          )}
         </div>
       )}
 

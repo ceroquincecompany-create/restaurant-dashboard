@@ -88,7 +88,8 @@ export default function PaginaInicio() {
     if (empleado) cargarDatos()
   }, [empleado, cargarDatos])
 
-  useEffect(() => {
+  function obtenerUbicacion() {
+    setGeoStatus('checking')
     if (!navigator.geolocation) { setGeoStatus('error'); return }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -97,9 +98,11 @@ export default function PaginaInicio() {
         setGeoStatus(d <= RADIO_M ? 'ok' : 'far')
       },
       (err) => setGeoStatus(err.code === 1 ? 'denied' : 'error'),
-      { timeout: 10000, maximumAge: 60000 }
+      { timeout: 15000, maximumAge: 0 }
     )
-  }, [])
+  }
+
+  useEffect(() => { obtenerUbicacion() }, [])
 
   // Bypass geo check for employees without restriction
   useEffect(() => {
@@ -198,20 +201,44 @@ export default function PaginaInicio() {
           </span>
         </div>
       ) : (
-        <div className={`rounded-xl px-4 py-3 mb-4 flex items-center gap-3 text-base ${
+        <div className={`rounded-xl px-4 py-3 mb-4 text-base ${
           geoStatus === 'ok' ? 'bg-emerald-50 border border-emerald-200 text-emerald-700' :
           geoStatus === 'far' ? 'bg-rose-50 border border-rose-200 text-rose-700' :
           geoStatus === 'checking' ? 'bg-gray-50 border border-gray-200 text-gray-500' :
           'bg-amber-50 border border-amber-200 text-amber-700'
         }`}>
-          <MapPin size={18} className="flex-shrink-0" />
-          <span>
-            {geoStatus === 'checking' && 'Obteniendo ubicación...'}
-            {geoStatus === 'ok' && `En el local${distancia !== null ? ` · ${distancia}m` : ''}`}
-            {geoStatus === 'far' && `Estás a ${distancia}m — necesitas estar a menos de ${RADIO_M}m`}
-            {geoStatus === 'denied' && 'Activa la ubicación para poder fichar'}
-            {geoStatus === 'error' && 'No se pudo obtener la ubicación'}
-          </span>
+          <div className="flex items-start gap-3">
+            <MapPin size={18} className="flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              {geoStatus === 'checking' && <span>Obteniendo ubicación...</span>}
+              {geoStatus === 'ok' && <span>En el local{distancia !== null ? ` · ${distancia}m` : ''}</span>}
+              {geoStatus === 'far' && (
+                <>
+                  <p>Estás a {distancia}m — necesitas estar a menos de {RADIO_M}m</p>
+                  <button onClick={obtenerUbicacion} className="mt-1.5 text-sm font-semibold underline underline-offset-2">
+                    Reintentar ubicación
+                  </button>
+                </>
+              )}
+              {geoStatus === 'denied' && (
+                <>
+                  <p className="font-medium">Ubicación denegada</p>
+                  <p className="text-sm mt-1 opacity-80">En Chrome Android: toca el candado en la barra de direcciones → Permisos del sitio → Ubicación → Permitir</p>
+                  <button onClick={obtenerUbicacion} className="mt-2 text-sm font-semibold underline underline-offset-2">
+                    Reintentar ubicación
+                  </button>
+                </>
+              )}
+              {geoStatus === 'error' && (
+                <>
+                  <p>No se pudo obtener la ubicación</p>
+                  <button onClick={obtenerUbicacion} className="mt-1.5 text-sm font-semibold underline underline-offset-2">
+                    Reintentar ubicación
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
