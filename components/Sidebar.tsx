@@ -193,7 +193,7 @@ export default function Sidebar() {
     <aside className="fixed left-0 top-0 h-screen w-60 bg-[#1A1A1A] flex flex-col">
       <div className="px-5 py-5 border-b border-white/10">
         <div className="flex items-center gap-3">
-          <img src="/logo.jpg" alt="SOFI" className="h-10 w-10 rounded-lg object-contain bg-white p-0.5" />
+          <img src="/favicon.png" alt="SOFI" className="h-10 w-10 rounded-lg object-contain bg-white p-0.5" />
           <div>
             <p className="text-sm font-bold text-white tracking-wide">SOFI</p>
             <p className="text-xs text-white/40">Panel de gestión</p>
