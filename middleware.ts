@@ -1,6 +1,15 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextRequest, NextResponse } from 'next/server'
 
+const ADMIN_IP = '188.76.183.5'
+
+function getClientIP(request: NextRequest): string | null {
+  const forwarded = request.headers.get('x-forwarded-for')
+  if (forwarded) return forwarded.split(',')[0].trim()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (request as any).ip ?? null
+}
+
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
@@ -34,8 +43,23 @@ export async function middleware(request: NextRequest) {
   }
 
   if (user) {
-    // Read role cookie set during login
     const rol = request.cookies.get('user_rol')?.value ?? 'admin'
+
+    // IP restriction: admins can only access from the authorized device.
+    // Skip if IP cannot be determined (local development without proxy headers).
+    if (rol === 'admin') {
+      const clientIP = getClientIP(request)
+      if (clientIP !== null && clientIP !== ADMIN_IP) {
+        if (isLoginPage) {
+          // Allow staying on login page so the error message is visible — no redirect loop.
+          return supabaseResponse
+        }
+        const url = request.nextUrl.clone()
+        url.pathname = '/login'
+        url.searchParams.set('error', 'ip_restringida')
+        return NextResponse.redirect(url)
+      }
+    }
 
     // Authenticated on login → redirect to correct home
     if (isLoginPage) {

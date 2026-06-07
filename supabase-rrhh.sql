@@ -49,3 +49,8 @@ insert into empleados (nombre, puesto, local_id, horas_contrato, estado) values
   ('Eva María Caballero Costa','Sala',   (select id from locales where nombre ilike '%pinomonotano%' limit 1), 29, 'activo'),
   ('Sergio Hidalgo Lorca',     'Sala',   (select id from locales where nombre ilike '%pinomonotano%' limit 1), 30, 'activo'),
   ('Raúl Benavente Rossi',     'Sala',   (select id from locales where nombre ilike '%pinomonotano%' limit 1), 15, 'activo');
+
+-- ──────────────────────────────────────────────────────────────
+-- MIGRACIÓN: sin_restriccion_geo
+-- ──────────────────────────────────────────────────────────────
+ALTER TABLE empleados ADD COLUMN IF NOT EXISTS sin_restriccion_geo BOOLEAN NOT NULL DEFAULT false;

@@ -1,12 +1,16 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { supabaseAuth } from '@/lib/supabase-browser'
 import { supabase } from '@/lib/supabase'
+import { ShieldAlert } from 'lucide-react'
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const ipRestringida = searchParams.get('error') === 'ip_restringida'
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -25,7 +29,6 @@ export default function LoginPage() {
       return
     }
 
-    // Determine role from empleados table
     const { data: emp } = await supabase
       .from('empleados')
       .select('rol')
@@ -34,7 +37,6 @@ export default function LoginPage() {
 
     const rol = emp?.rol ?? 'admin'
 
-    // Store role in cookie (7 days)
     document.cookie = `user_rol=${rol}; path=/; max-age=604800; SameSite=Lax`
 
     router.push(rol === 'empleado' ? '/empleado/inicio' : '/')
@@ -49,6 +51,16 @@ export default function LoginPage() {
           <h1 className="text-2xl font-bold text-white tracking-wide">SOFI</h1>
           <p className="text-sm text-white/40 mt-1">Panel de gestión</p>
         </div>
+
+        {ipRestringida && (
+          <div className="mb-5 flex items-start gap-3 bg-rose-500/10 border border-rose-500/30 rounded-xl px-4 py-3">
+            <ShieldAlert size={18} className="text-rose-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-rose-400">Acceso restringido</p>
+              <p className="text-xs text-rose-400/80 mt-0.5">Acceso restringido a dispositivo autorizado</p>
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -88,5 +100,13 @@ export default function LoginPage() {
         </form>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   )
 }

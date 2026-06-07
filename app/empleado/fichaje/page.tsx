@@ -6,8 +6,8 @@ import type { Fichaje } from '@/lib/supabase'
 import { useEmpleadoActual } from '@/lib/useEmpleado'
 import { MapPin, RefreshCw, Clock, AlertCircle, Navigation } from 'lucide-react'
 
-const LOCAL_LAT = 37.7749
-const LOCAL_LNG = -1.4977
+const LOCAL_LAT = 37.3956
+const LOCAL_LNG = -5.9845
 const RADIO_M = 500
 
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -84,6 +84,14 @@ export default function PaginaFichaje() {
 
   useEffect(() => { obtenerUbicacion() }, [])
 
+  // If employee has no geo restriction, bypass the check entirely
+  useEffect(() => {
+    if (empleado?.sin_restriccion_geo) {
+      setGeoStatus('ok')
+      setDistancia(null)
+    }
+  }, [empleado?.sin_restriccion_geo])
+
   async function fichar() {
     if (!empleado || geoStatus !== 'ok') return
     setFichando(true)
@@ -114,43 +122,58 @@ export default function PaginaFichaje() {
       </div>
 
       {/* Geolocalización */}
-      <div className={`rounded-xl p-4 mb-4 ${
-        geoStatus === 'ok' ? 'bg-emerald-50 border border-emerald-200' :
-        geoStatus === 'far' ? 'bg-rose-50 border border-rose-200' :
-        'bg-amber-50 border border-amber-200'
-      }`}>
-        <div className="flex items-center justify-between">
+      {empleado?.sin_restriccion_geo ? (
+        <div className="rounded-xl p-4 mb-4 bg-amber-50 border border-amber-200">
           <div className="flex items-center gap-3">
-            <MapPin size={20} className={
-              geoStatus === 'ok' ? 'text-emerald-600' : geoStatus === 'far' ? 'text-rose-600' : 'text-amber-600'
-            } />
+            <MapPin size={20} className="text-amber-600" />
             <div>
-              {geoStatus === 'checking' && <p className="text-sm font-medium text-amber-700">Obteniendo ubicación...</p>}
-              {geoStatus === 'ok' && (
-                <>
-                  <p className="text-sm font-semibold text-emerald-700">En el local</p>
-                  <p className="text-xs text-emerald-600">Estás a {distancia}m — puedes fichar</p>
-                </>
-              )}
-              {geoStatus === 'far' && (
-                <>
-                  <p className="text-sm font-semibold text-rose-700">Fuera del radio permitido</p>
-                  <p className="text-xs text-rose-600">Estás a {distancia}m — debes estar a menos de {RADIO_M}m para fichar</p>
-                </>
-              )}
-              {geoStatus === 'denied' && <p className="text-sm font-medium text-amber-700">Permiso de ubicación denegado</p>}
-              {geoStatus === 'error' && <p className="text-sm font-medium text-amber-700">No se pudo obtener la ubicación</p>}
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-semibold text-amber-700">Fichaje habilitado</p>
+                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-200 text-amber-800">Modo prueba</span>
+              </div>
+              <p className="text-xs text-amber-600">Sin restricción de ubicación para este empleado</p>
             </div>
           </div>
-          <button
-            onClick={obtenerUbicacion}
-            className="p-2 rounded-lg hover:bg-white/50 transition-colors"
-            title="Actualizar ubicación"
-          >
-            <Navigation size={16} className="text-gray-500" />
-          </button>
         </div>
-      </div>
+      ) : (
+        <div className={`rounded-xl p-4 mb-4 ${
+          geoStatus === 'ok' ? 'bg-emerald-50 border border-emerald-200' :
+          geoStatus === 'far' ? 'bg-rose-50 border border-rose-200' :
+          'bg-amber-50 border border-amber-200'
+        }`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <MapPin size={20} className={
+                geoStatus === 'ok' ? 'text-emerald-600' : geoStatus === 'far' ? 'text-rose-600' : 'text-amber-600'
+              } />
+              <div>
+                {geoStatus === 'checking' && <p className="text-sm font-medium text-amber-700">Obteniendo ubicación...</p>}
+                {geoStatus === 'ok' && (
+                  <>
+                    <p className="text-sm font-semibold text-emerald-700">En el local</p>
+                    <p className="text-xs text-emerald-600">Estás a {distancia}m — puedes fichar</p>
+                  </>
+                )}
+                {geoStatus === 'far' && (
+                  <>
+                    <p className="text-sm font-semibold text-rose-700">Fuera del radio permitido</p>
+                    <p className="text-xs text-rose-600">Estás a {distancia}m — debes estar a menos de {RADIO_M}m para fichar</p>
+                  </>
+                )}
+                {geoStatus === 'denied' && <p className="text-sm font-medium text-amber-700">Permiso de ubicación denegado</p>}
+                {geoStatus === 'error' && <p className="text-sm font-medium text-amber-700">No se pudo obtener la ubicación</p>}
+              </div>
+            </div>
+            <button
+              onClick={obtenerUbicacion}
+              className="p-2 rounded-lg hover:bg-white/50 transition-colors"
+              title="Actualizar ubicación"
+            >
+              <Navigation size={16} className="text-gray-500" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Botón fichar */}
       <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-5 text-center">

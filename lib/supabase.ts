@@ -42,6 +42,7 @@ export type Empleado = {
   nss: string | null
   email_acceso: string | null
   notas: string | null
+  sin_restriccion_geo: boolean
   activo: boolean
   created_at: string
 }
