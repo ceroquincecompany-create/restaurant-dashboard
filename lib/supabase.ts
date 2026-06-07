@@ -138,6 +138,62 @@ export type SolicitudVacaciones = {
   created_at: string
 }
 
+export type Merma = {
+  id: number
+  local_id: number | null
+  empleado_nombre: string
+  tipo: 'consumo_interno' | 'desperdicio'
+  ingrediente_id: number | null
+  cantidad: number
+  coste: number | null
+  fecha: string
+  notas: string | null
+  created_at: string
+}
+
+export type Temperatura = {
+  id: number
+  local_id: number | null
+  empleado_nombre: string
+  fecha: string
+  mesa_fria_1: number | null
+  mesa_fria_2: number | null
+  mesa_fria_3: number | null
+  congelador_4: number | null
+  notas: string | null
+  created_at: string
+}
+
+export type Limpieza = {
+  id: number
+  local_id: number | null
+  empleado_nombre: string
+  tarea: string
+  frecuencia: 'diaria' | 'semanal' | 'mensual'
+  fecha: string
+  notas: string | null
+  created_at: string
+}
+
+export type ChecklistItem = {
+  id: string
+  nombre: string
+  resultado: 'conforme' | 'no_conforme' | 'na'
+  notas: string
+}
+
+export type VisitaAppcc = {
+  id: number
+  local_id: number | null
+  empleado_nombre: string
+  fecha: string
+  resultado: 'conforme' | 'no_conforme' | 'parcial'
+  checklist: ChecklistItem[]
+  observaciones: string | null
+  acciones_correctivas: string | null
+  created_at: string
+}
+
 export type InventarioConteo = {
   id: number
   empleado_id: number

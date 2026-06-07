@@ -8,7 +8,7 @@ import {
   TrendingUp, ChevronDown, FileText, PlusSquare, Target, Heart,
   Package, BookOpen, Layers, Truck, LogOut,
   Users2, Users, CalendarDays, ClipboardList, UserCircle, Wallet,
-  ShieldAlert, Trophy,
+  ShieldAlert, Trophy, Wrench, Trash2, Thermometer, Sparkles, ClipboardCheck,
 } from 'lucide-react'
 import { supabaseAuth } from '@/lib/supabase-browser'
 import { supabase } from '@/lib/supabase'
@@ -30,6 +30,13 @@ const finanzasItems = [
   { href: '/finanzas/entrada', icono: PlusSquare, label: 'Entrada de Datos' },
   { href: '/finanzas/presupuesto', icono: Target, label: 'Presupuesto' },
   { href: '/finanzas/salud', icono: Heart, label: 'Salud Financiera' },
+]
+
+const operacionesItems = [
+  { href: '/operaciones/mermas', icono: Trash2, label: 'Mermas' },
+  { href: '/operaciones/temperaturas', icono: Thermometer, label: 'Temperaturas' },
+  { href: '/operaciones/limpiezas', icono: Sparkles, label: 'Limpiezas' },
+  { href: '/operaciones/appcc', icono: ClipboardCheck, label: 'Visita APPCC' },
 ]
 
 const rrhhItems = [
@@ -213,6 +220,13 @@ export default function Sidebar() {
           label="Finanzas"
           items={finanzasItems}
           prefijo="/finanzas"
+        />
+
+        <SeccionColapsable
+          icono={Wrench}
+          label="Operaciones"
+          items={operacionesItems}
+          prefijo="/operaciones"
         />
 
         <SeccionColapsable
