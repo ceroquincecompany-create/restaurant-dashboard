@@ -37,7 +37,7 @@ function LoginForm() {
 
     const rol = emp?.rol ?? 'admin'
 
-    document.cookie = `user_rol=${rol}; path=/; max-age=604800; SameSite=Lax`
+    document.cookie = `user_rol=${rol}; path=/; max-age=2592000; SameSite=Lax`
 
     router.push(rol === 'empleado' ? '/empleado/inicio' : '/')
     router.refresh()

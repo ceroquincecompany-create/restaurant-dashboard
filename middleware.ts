@@ -35,52 +35,70 @@ export async function middleware(request: NextRequest) {
   const isLoginPage = pathname.startsWith('/login')
   const isEmpleadoRoute = pathname.startsWith('/empleado')
 
-  // Not authenticated → login
-  if (!user && !isLoginPage) {
+  // ── 1. /login is always accessible from any IP ────────────────
+  if (isLoginPage) {
+    if (user) {
+      const rol = request.cookies.get('user_rol')?.value
+      if (!rol) {
+        // Cookie missing: let the user log in again to re-establish role.
+        return supabaseResponse
+      }
+      // Admin with wrong IP: stay on login so the error message is visible.
+      if (rol === 'admin') {
+        const clientIP = getClientIP(request)
+        if (clientIP !== null && clientIP !== ADMIN_IP) {
+          return supabaseResponse
+        }
+      }
+      // Authenticated with role → redirect to their home
+      const url = request.nextUrl.clone()
+      url.pathname = rol === 'empleado' ? '/empleado/inicio' : '/'
+      return NextResponse.redirect(url)
+    }
+    return supabaseResponse
+  }
+
+  // ── 2. All other routes require authentication ─────────────────
+  if (!user) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
-  if (user) {
-    const rol = request.cookies.get('user_rol')?.value ?? 'admin'
+  // ── 3. Authenticated user on a non-login route ─────────────────
+  const rol = request.cookies.get('user_rol')?.value
 
-    // IP restriction: admins can only access from the authorized device.
-    // Skip if IP cannot be determined (local development without proxy headers).
-    if (rol === 'admin') {
-      const clientIP = getClientIP(request)
-      if (clientIP !== null && clientIP !== ADMIN_IP) {
-        if (isLoginPage) {
-          // Allow staying on login page so the error message is visible — no redirect loop.
-          return supabaseResponse
-        }
-        const url = request.nextUrl.clone()
-        url.pathname = '/login'
-        url.searchParams.set('error', 'ip_restringida')
-        return NextResponse.redirect(url)
-      }
-    }
+  // Cookie missing (e.g. expired while Supabase session was still valid):
+  // redirect to login so they re-authenticate and the cookie is re-set.
+  if (!rol) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/login'
+    return NextResponse.redirect(url)
+  }
 
-    // Authenticated on login → redirect to correct home
-    if (isLoginPage) {
+  // ── 4. IP restriction — only for confirmed admin role ──────────
+  // Employees are never subject to this check.
+  // Skip if IP cannot be determined (local development without proxy headers).
+  if (rol === 'admin') {
+    const clientIP = getClientIP(request)
+    if (clientIP !== null && clientIP !== ADMIN_IP) {
       const url = request.nextUrl.clone()
-      url.pathname = rol === 'empleado' ? '/empleado/inicio' : '/'
+      url.pathname = '/login'
+      url.searchParams.set('error', 'ip_restringida')
       return NextResponse.redirect(url)
     }
+  }
 
-    // Admin trying to access /empleado routes → back to admin
-    if (isEmpleadoRoute && rol !== 'empleado') {
-      const url = request.nextUrl.clone()
-      url.pathname = '/'
-      return NextResponse.redirect(url)
-    }
-
-    // Employee trying to access admin routes → employee home
-    if (!isEmpleadoRoute && rol === 'empleado') {
-      const url = request.nextUrl.clone()
-      url.pathname = '/empleado/inicio'
-      return NextResponse.redirect(url)
-    }
+  // ── 5. Route / role access control ────────────────────────────
+  if (isEmpleadoRoute && rol !== 'empleado') {
+    const url = request.nextUrl.clone()
+    url.pathname = '/'
+    return NextResponse.redirect(url)
+  }
+  if (!isEmpleadoRoute && rol === 'empleado') {
+    const url = request.nextUrl.clone()
+    url.pathname = '/empleado/inicio'
+    return NextResponse.redirect(url)
   }
 
   return supabaseResponse
