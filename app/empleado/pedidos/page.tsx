@@ -55,7 +55,7 @@ function ModalWhatsApp({ data, onCerrar }: { data: ModalWAData; onCerrar: () => 
 
   return (
     <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center bg-black/75 px-0 md:px-4">
-      <div className="w-full md:max-w-md bg-[#0b141a] md:rounded-2xl overflow-hidden flex flex-col max-h-[92vh]">
+      <div className="w-full md:max-w-md bg-[#0b141a] md:rounded-2xl overflow-hidden flex flex-col mb-16 md:mb-0 max-h-[calc(100dvh-64px)] md:max-h-[90vh]">
         <div className="bg-[#202c33] px-5 py-4 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-full bg-[#00a884] flex items-center justify-center">
@@ -393,8 +393,8 @@ export default function PaginaEmpleadoPedidos() {
           MODAL NUEVO PEDIDO — 3 pasos
       ════════════════════════════════════════════════════ */}
       {modalNuevo && (
-        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/60">
-          <div className="w-full md:max-w-lg bg-white md:rounded-2xl rounded-t-2xl overflow-hidden flex flex-col max-h-[92vh]">
+        <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center bg-black/60">
+          <div className="w-full md:max-w-lg bg-white md:rounded-2xl rounded-t-2xl overflow-hidden flex flex-col mb-16 md:mb-0 max-h-[calc(100dvh-64px)] md:max-h-[90vh]">
 
             {/* Header modal */}
             <div className="flex items-center gap-2 px-4 py-3.5 border-b border-gray-100 flex-shrink-0">
@@ -580,7 +580,7 @@ export default function PaginaEmpleadoPedidos() {
                 </div>
 
                 {/* Footer paso 2 */}
-                <div className="px-4 py-4 border-t border-gray-100 flex-shrink-0">
+                <div className="px-4 py-4 border-t border-gray-100 flex-shrink-0 bg-white">
                   <button
                     onClick={() => setPaso(3)}
                     disabled={!puedeVerResumen}
@@ -655,7 +655,7 @@ export default function PaginaEmpleadoPedidos() {
                 </div>
 
                 {/* Footer paso 3 */}
-                <div className="px-4 py-4 border-t border-gray-100 flex-shrink-0">
+                <div className="px-4 py-4 border-t border-gray-100 flex-shrink-0 bg-white">
                   <button
                     onClick={enviarPedido}
                     disabled={enviando}
