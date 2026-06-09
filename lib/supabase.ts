@@ -258,6 +258,8 @@ export type InventarioConteo = {
   ingrediente_id: number
   cantidad: number
   notas: string | null
+  cerrado: boolean
+  inventario_grupo_id: string | null
   created_at: string
 }
 
