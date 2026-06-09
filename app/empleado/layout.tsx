@@ -8,21 +8,20 @@ import { useEmpleadoActual } from '@/lib/useEmpleado'
 
 const navCompleto = [
   { href: '/empleado/inicio',      icono: Home,          label: 'Inicio' },
-  { href: '/empleado/horario',     icono: CalendarDays,   label: 'Horario' },
-  { href: '/empleado/fichaje',     icono: Clock,          label: 'Fichaje' },
-  { href: '/empleado/operaciones', icono: Wrench,         label: 'Operaciones' },
-  { href: '/empleado/pedidos',     icono: ShoppingCart,   label: 'Pedidos' },
-  { href: '/empleado/vacaciones',  icono: Umbrella,       label: 'Vacaciones' },
-  { href: '/empleado/inventario',  icono: Package,        label: 'Inventario' },
+  { href: '/empleado/ops',         icono: Wrench,        label: 'Operaciones' },
+  { href: '/empleado/pedidos',     icono: ShoppingCart,  label: 'Compras' },
+  { href: '/empleado/horario',     icono: CalendarDays,  label: 'Horario' },
+  { href: '/empleado/vacaciones',  icono: Umbrella,      label: 'Vacaciones' },
+  { href: '/empleado/inventario',  icono: Package,       label: 'Inventario' },
+  { href: '/empleado/fichaje',     icono: Clock,         label: 'Fichaje' },
 ]
 
-// Los 5 más usados en la bottom nav móvil
+// 4 secciones en el bottom nav móvil — fichaje e inventario quedan en Inicio/Ops
 const navMovil = [
-  { href: '/empleado/inicio',      icono: Home,          label: 'Inicio' },
-  { href: '/empleado/fichaje',     icono: Clock,         label: 'Fichaje' },
-  { href: '/empleado/operaciones', icono: Wrench,        label: 'Ops' },
-  { href: '/empleado/inventario',  icono: Package,       label: 'Inventario' },
-  { href: '/empleado/horario',     icono: CalendarDays,  label: 'Horario' },
+  { href: '/empleado/inicio',  icono: Home,          label: 'Inicio' },
+  { href: '/empleado/ops',     icono: Wrench,        label: 'Ops' },
+  { href: '/empleado/pedidos', icono: ShoppingCart,  label: 'Compras' },
+  { href: '/empleado/horario', icono: CalendarDays,  label: 'Horario' },
 ]
 
 export default function EmpleadoLayout({ children }: { children: React.ReactNode }) {
@@ -90,7 +89,7 @@ export default function EmpleadoLayout({ children }: { children: React.ReactNode
         {children}
       </main>
 
-      {/* ── Bottom navigation móvil (<md) ────────────────── */}
+      {/* ── Bottom navigation móvil (<md) — 4 secciones ─── */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-[0_-2px_12px_rgba(0,0,0,0.06)]">
         <div className="flex items-stretch justify-around h-16">
           {navMovil.map(({ href, icono: Icono, label }) => {

@@ -5,7 +5,10 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import type { Fichaje, Turno } from '@/lib/supabase'
 import { useEmpleadoActual } from '@/lib/useEmpleado'
-import { RefreshCw, MapPin, Clock, CalendarDays, Umbrella, AlertCircle, Bell, Thermometer, Sparkles, ChevronRight } from 'lucide-react'
+import {
+  RefreshCw, MapPin, Clock, CalendarDays, Umbrella, AlertCircle,
+  Bell, Thermometer, Sparkles, ChevronRight, Package,
+} from 'lucide-react'
 
 // Coordenadas SOFI Pinomonotano — Calle Estibadores 24-25, 41015 Sevilla
 const LOCAL_LAT = 37.42296249221703
@@ -35,6 +38,26 @@ function calcHorasTotal(entrada: string, salida: string): number {
   return Math.round((t / 60) * 100) / 100
 }
 
+// Genera "Hoy", "Mañana, miércoles" o "jueves" según la fecha del turno
+function etiquetaTurno(turno: Turno): string {
+  const hoyISO = new Date().toISOString().split('T')[0]
+  const man = new Date(); man.setDate(man.getDate() + 1)
+  const manISO = man.toISOString().split('T')[0]
+  const diaSemana = new Date(turno.fecha + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'long' })
+  const diaCapital = diaSemana.charAt(0).toUpperCase() + diaSemana.slice(1)
+
+  let prefijo = ''
+  if (turno.fecha === hoyISO) prefijo = 'Hoy'
+  else if (turno.fecha === manISO) prefijo = `Mañana, ${diaCapital}`
+  else prefijo = diaCapital
+
+  const hora = turno.hora_inicio
+    ? `${turno.hora_inicio.slice(0, 5)} – ${turno.hora_fin?.slice(0, 5) ?? '?'}`
+    : null
+
+  return hora ? `${prefijo} · ${hora}` : prefijo
+}
+
 export default function PaginaInicio() {
   const { empleado, loading: empLoading } = useEmpleadoActual()
   const [fichajeHoy, setFichajeHoy] = useState<Fichaje | null | undefined>(undefined)
@@ -43,11 +66,13 @@ export default function PaginaInicio() {
   const [fichando, setFichando] = useState(false)
   const [geoStatus, setGeoStatus] = useState<'checking' | 'ok' | 'far' | 'error' | 'denied'>('checking')
   const [distancia, setDistancia] = useState<number | null>(null)
-  // Badges de alertas operacionales
+  // Badges operacionales
   const [avisosActivos, setAvisosActivos] = useState(0)
   const [tempMañanaPendiente, setTempMañanaPendiente] = useState(false)
   const [tempNochePendiente, setTempNochePendiente] = useState(false)
   const [limpiezasPendientes, setLimpiezasPendientes] = useState(0)
+  // Badge inventario mensual
+  const [inventarioPendiente, setInventarioPendiente] = useState(false)
 
   const today = new Date().toISOString().split('T')[0]
 
@@ -59,9 +84,8 @@ export default function PaginaInicio() {
     const horaActualNum = ahora.getHours()
     const minutoActual = ahora.getMinutes()
 
-    // Para "próximo turno" filtramos por hora actual: si el turno es hoy,
-    // solo lo mostramos si hora_fin aún no ha pasado (o si no tiene hora_fin asignada).
     const horaStr = `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}:00`
+
     const [{ data: fich }, { data: prox }, { data: sols }] = await Promise.all([
       supabase.from('fichajes').select('*').eq('empleado_id', empleado.id).eq('fecha', today).maybeSingle(),
       supabase
@@ -89,13 +113,31 @@ export default function PaginaInicio() {
     setTempMañanaPendiente(horaActualNum >= 11 && (tempMañana ?? 0) === 0)
     setTempNochePendiente((horaActualNum > 22 || (horaActualNum === 22 && minutoActual >= 30)) && (tempNoche ?? 0) === 0)
     const tareasCompletadas = new Set((limpiezasHoy ?? []).map((r: any) => r.tarea))
-    const DIARIAS = ['Utensilios cocina','Superficies cocina','Superficies horizontales','Superficies verticales','Baños']
+    const DIARIAS = ['Utensilios cocina', 'Superficies cocina', 'Superficies horizontales', 'Superficies verticales', 'Baños']
     setLimpiezasPendientes(DIARIAS.filter(t => !tareasCompletadas.has(t)).length)
+
+    // Badge inventario: últimos 3 días del mes, no confirmado aún
+    const finMes = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0)
+    const ultimoDia = finMes.getDate()
+    const diaHoy = ahora.getDate()
+    if (diaHoy >= ultimoDia - 2) {
+      const y = ahora.getFullYear()
+      const m = ahora.getMonth() + 1
+      const inicioMes = `${y}-${String(m).padStart(2, '0')}-01`
+      const finMesISO = finMes.toISOString().split('T')[0]
+      const { count } = await supabase.from('inventario_conteos')
+        .select('id', { count: 'exact', head: true })
+        .eq('empleado_id', empleado.id)
+        .eq('cerrado', true)
+        .gte('fecha', inicioMes)
+        .lte('fecha', finMesISO)
+      setInventarioPendiente((count ?? 0) === 0)
+    } else {
+      setInventarioPendiente(false)
+    }
   }, [empleado, today])
 
-  useEffect(() => {
-    if (empleado) cargarDatos()
-  }, [empleado, cargarDatos])
+  useEffect(() => { if (empleado) cargarDatos() }, [empleado, cargarDatos])
 
   function obtenerUbicacion() {
     setGeoStatus('checking')
@@ -113,12 +155,8 @@ export default function PaginaInicio() {
 
   useEffect(() => { obtenerUbicacion() }, [])
 
-  // Bypass geo check for employees without restriction
   useEffect(() => {
-    if (empleado?.sin_restriccion_geo) {
-      setGeoStatus('ok')
-      setDistancia(null)
-    }
+    if (empleado?.sin_restriccion_geo) { setGeoStatus('ok'); setDistancia(null) }
   }, [empleado?.sin_restriccion_geo])
 
   async function fichar() {
@@ -166,34 +204,41 @@ export default function PaginaInicio() {
         </p>
       </div>
 
-      {/* ── Banners de alertas operacionales ── */}
-      {(avisosActivos > 0 || tempMañanaPendiente || tempNochePendiente || limpiezasPendientes > 0) && (
+      {/* ── Banners de alertas ── */}
+      {(inventarioPendiente || avisosActivos > 0 || tempMañanaPendiente || tempNochePendiente || limpiezasPendientes > 0) && (
         <div className="space-y-2 mb-4">
+          {inventarioPendiente && (
+            <Link href="/empleado/inventario" className="flex items-center gap-3 bg-[#F5B731]/10 border border-[#F5B731]/40 rounded-xl px-4 py-3 active:scale-[0.98] transition-all">
+              <Package size={18} className="text-[#F5B731] flex-shrink-0" />
+              <span className="text-base font-semibold text-[#1A1A1A] flex-1">Inventario mensual pendiente</span>
+              <ChevronRight size={16} className="text-[#F5B731]" />
+            </Link>
+          )}
           {avisosActivos > 0 && (
-            <Link href="/empleado/operaciones" className="flex items-center gap-3 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 active:scale-[0.98] transition-all">
+            <Link href="/empleado/ops" className="flex items-center gap-3 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 active:scale-[0.98] transition-all">
               <Bell size={18} className="text-rose-500 flex-shrink-0" />
               <span className="text-base font-semibold text-rose-700 flex-1">{avisosActivos} aviso{avisosActivos !== 1 ? 's' : ''} activo{avisosActivos !== 1 ? 's' : ''}</span>
               <ChevronRight size={16} className="text-rose-400" />
             </Link>
           )}
           {tempMañanaPendiente && (
-            <Link href="/empleado/operaciones" className="flex items-center gap-3 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 active:scale-[0.98] transition-all">
+            <Link href="/empleado/ops" className="flex items-center gap-3 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 active:scale-[0.98] transition-all">
               <Thermometer size={18} className="text-orange-500 flex-shrink-0" />
               <span className="text-base font-semibold text-orange-700 flex-1">Temperatura de mañana pendiente</span>
               <ChevronRight size={16} className="text-orange-400" />
             </Link>
           )}
           {tempNochePendiente && (
-            <Link href="/empleado/operaciones" className="flex items-center gap-3 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 active:scale-[0.98] transition-all">
+            <Link href="/empleado/ops" className="flex items-center gap-3 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 active:scale-[0.98] transition-all">
               <Thermometer size={18} className="text-orange-500 flex-shrink-0" />
               <span className="text-base font-semibold text-orange-700 flex-1">Temperatura de noche pendiente</span>
               <ChevronRight size={16} className="text-orange-400" />
             </Link>
           )}
           {limpiezasPendientes > 0 && (
-            <Link href="/empleado/operaciones" className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 active:scale-[0.98] transition-all">
+            <Link href="/empleado/ops" className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 active:scale-[0.98] transition-all">
               <Sparkles size={18} className="text-amber-500 flex-shrink-0" />
-              <span className="text-base font-semibold text-amber-700 flex-1">{limpiezasPendientes} limpieza{limpiezasPendientes !== 1 ? 's' : ''} diaria{limpiezasPendientes !== 1 ? 's' : ''} pendiente{limpiezasPendientes !== 1 ? 's' : ''}</span>
+              <span className="text-base font-semibold text-amber-700 flex-1">{limpiezasPendientes} limpieza{limpiezasPendientes !== 1 ? 's' : ''} pendiente{limpiezasPendientes !== 1 ? 's' : ''}</span>
               <ChevronRight size={16} className="text-amber-400" />
             </Link>
           )}
@@ -211,8 +256,8 @@ export default function PaginaInicio() {
         </div>
       ) : (
         <div className={`rounded-xl px-4 py-3 mb-4 text-base ${
-          geoStatus === 'ok' ? 'bg-emerald-50 border border-emerald-200 text-emerald-700' :
-          geoStatus === 'far' ? 'bg-rose-50 border border-rose-200 text-rose-700' :
+          geoStatus === 'ok'       ? 'bg-emerald-50 border border-emerald-200 text-emerald-700' :
+          geoStatus === 'far'      ? 'bg-rose-50 border border-rose-200 text-rose-700' :
           geoStatus === 'checking' ? 'bg-gray-50 border border-gray-200 text-gray-500' :
           'bg-amber-50 border border-amber-200 text-amber-700'
         }`}>
@@ -224,26 +269,20 @@ export default function PaginaInicio() {
               {geoStatus === 'far' && (
                 <>
                   <p>Estás a {distancia}m — necesitas estar a menos de {RADIO_M}m</p>
-                  <button onClick={obtenerUbicacion} className="mt-1.5 text-sm font-semibold underline underline-offset-2">
-                    Reintentar ubicación
-                  </button>
+                  <button onClick={obtenerUbicacion} className="mt-1.5 text-sm font-semibold underline underline-offset-2">Reintentar</button>
                 </>
               )}
               {geoStatus === 'denied' && (
                 <>
                   <p className="font-medium">Ubicación denegada</p>
-                  <p className="text-sm mt-1 opacity-80">En Chrome Android: toca el candado en la barra de direcciones → Permisos del sitio → Ubicación → Permitir</p>
-                  <button onClick={obtenerUbicacion} className="mt-2 text-sm font-semibold underline underline-offset-2">
-                    Reintentar ubicación
-                  </button>
+                  <p className="text-sm mt-1 opacity-80">En Chrome Android: toca el candado → Permisos del sitio → Ubicación → Permitir</p>
+                  <button onClick={obtenerUbicacion} className="mt-2 text-sm font-semibold underline underline-offset-2">Reintentar</button>
                 </>
               )}
               {geoStatus === 'error' && (
                 <>
                   <p>No se pudo obtener la ubicación</p>
-                  <button onClick={obtenerUbicacion} className="mt-1.5 text-sm font-semibold underline underline-offset-2">
-                    Reintentar ubicación
-                  </button>
+                  <button onClick={obtenerUbicacion} className="mt-1.5 text-sm font-semibold underline underline-offset-2">Reintentar</button>
                 </>
               )}
             </div>
@@ -251,7 +290,7 @@ export default function PaginaInicio() {
         </div>
       )}
 
-      {/* Botón FICHAR */}
+      {/* ── Botón FICHAR ── */}
       <div className="bg-white rounded-2xl border border-gray-200 p-5 mb-4">
         {estadoFichaje === 'completado' ? (
           <div className="flex items-center gap-4 py-2">
@@ -290,11 +329,7 @@ export default function PaginaInicio() {
                 <span className="flex items-center justify-center gap-2">
                   <RefreshCw size={22} className="animate-spin" /> Fichando...
                 </span>
-              ) : estadoFichaje === 'sin_fichar' ? (
-                '▶  FICHAR ENTRADA'
-              ) : (
-                '⏹  FICHAR SALIDA'
-              )}
+              ) : estadoFichaje === 'sin_fichar' ? '▶  FICHAR ENTRADA' : '⏹  FICHAR SALIDA'}
             </button>
             {!puedefichar && geoStatus !== 'ok' && geoStatus !== 'checking' && (
               <p className="text-sm text-rose-500 mt-2 flex items-center justify-center gap-1.5">
@@ -305,7 +340,7 @@ export default function PaginaInicio() {
         )}
       </div>
 
-      {/* Cards info */}
+      {/* ── Cards info ── */}
       <div className="grid grid-cols-2 gap-3">
         {/* Próximo turno */}
         <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -316,14 +351,9 @@ export default function PaginaInicio() {
           {proximoTurno ? (
             <div>
               <p className="text-base font-bold text-gray-900">{proximoTurno.tipo_turno}</p>
-              <p className="text-base text-gray-600 mt-1">
-                {new Date(proximoTurno.fecha + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })}
+              <p className="text-sm text-gray-500 mt-1 leading-snug">
+                {etiquetaTurno(proximoTurno)}
               </p>
-              {proximoTurno.hora_inicio && (
-                <p className="text-sm text-gray-400 mt-0.5">
-                  {proximoTurno.hora_inicio.slice(0, 5)} → {proximoTurno.hora_fin?.slice(0, 5) ?? '...'}
-                </p>
-              )}
             </div>
           ) : (
             <p className="text-base text-gray-400">Sin turnos</p>

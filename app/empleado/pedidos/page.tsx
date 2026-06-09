@@ -6,7 +6,7 @@ import type { Ingrediente } from '@/lib/supabase'
 import { useEmpleadoActual } from '@/lib/useEmpleado'
 import {
   RefreshCw, ShoppingCart, ChevronDown, ChevronUp,
-  CheckCircle2, AlertTriangle, Package, MessageCircle, Copy, Check, X, Plus,
+  CheckCircle2, AlertTriangle, Package, MessageCircle, Copy, Check, X, Plus, Search,
 } from 'lucide-react'
 
 type Proveedor = { id: number; nombre: string; telefono: string | null }
@@ -130,6 +130,7 @@ export default function PaginaEmpleadoPedidos() {
 
   // Estado del formulario (dentro del modal)
   const [provSelId, setProvSelId] = useState('')
+  const [busqProv, setBusqProv] = useState('')
   const [ingredientes, setIngredientes] = useState<Ingrediente[]>([])
   const [lineas, setLineas] = useState<LineaPedido[]>([])
   const [notas, setNotas] = useState('')
@@ -187,14 +188,19 @@ export default function PaginaEmpleadoPedidos() {
 
   const proveedorSel = proveedores.find(p => String(p.id) === provSelId)
 
+  const proveedoresFiltrados = useMemo(() => {
+    const q = busqProv.toLowerCase()
+    return q ? proveedores.filter(p => p.nombre.toLowerCase().includes(q)) : proveedores
+  }, [proveedores, busqProv])
+
   function abrirModal() {
-    setProvSelId(''); setLineas([]); setNotas(''); setError('')
+    setProvSelId(''); setBusqProv(''); setLineas([]); setNotas(''); setError('')
     setModalNuevo(true)
   }
 
   function cerrarModal() {
     setModalNuevo(false)
-    setProvSelId(''); setLineas([]); setNotas(''); setError('')
+    setProvSelId(''); setBusqProv(''); setLineas([]); setNotas(''); setError('')
   }
 
   async function enviarPedido() {
@@ -342,8 +348,20 @@ export default function PaginaEmpleadoPedidos() {
               {/* Proveedor */}
               <div>
                 <p className="text-xs font-medium text-gray-400 mb-2">Proveedor *</p>
+                {proveedores.length > 4 && (
+                  <div className="relative mb-2">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Buscar proveedor..."
+                      value={busqProv}
+                      onChange={e => setBusqProv(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#F5B731]"
+                    />
+                  </div>
+                )}
                 <div className="space-y-2">
-                  {proveedores.map(p => (
+                  {proveedoresFiltrados.map(p => (
                     <button
                       key={p.id}
                       onClick={() => setProvSelId(String(p.id))}
