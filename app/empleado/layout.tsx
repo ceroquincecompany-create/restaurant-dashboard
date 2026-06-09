@@ -21,7 +21,7 @@ const navMovil = [
   { href: '/empleado/inicio',      icono: Home,          label: 'Inicio' },
   { href: '/empleado/fichaje',     icono: Clock,         label: 'Fichaje' },
   { href: '/empleado/operaciones', icono: Wrench,        label: 'Ops' },
-  { href: '/empleado/pedidos',     icono: ShoppingCart,  label: 'Pedidos' },
+  { href: '/empleado/inventario',  icono: Package,       label: 'Inventario' },
   { href: '/empleado/horario',     icono: CalendarDays,  label: 'Horario' },
 ]
 

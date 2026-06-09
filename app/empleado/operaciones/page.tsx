@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Ingrediente, AvisoEquipo } from '@/lib/supabase'
 import { useEmpleadoActual } from '@/lib/useEmpleado'
-import { Thermometer, Sparkles, Trash2, Bell, RefreshCw, CheckCircle2, Circle, Plus, X, AlertTriangle } from 'lucide-react'
+import { Thermometer, Sparkles, Trash2, Bell, RefreshCw, CheckCircle2, Circle, Plus, X, AlertTriangle, Package, Search, Save, ChevronDown, ChevronUp, Lock } from 'lucide-react'
+import type { InventarioConteo } from '@/lib/supabase'
 
 // ── Tipos de temperatura ───────────────────────────────────────
 type Estado = 'ok' | 'aviso' | 'alerta' | 'muy_frio' | 'sin_dato'
@@ -62,7 +63,7 @@ const TAREAS_LIMPIEZA = [
 
 const CATEGORIAS_AVISO = ['Equipamiento', 'Seguridad', 'Suministros', 'Limpieza', 'Urgente', 'General']
 
-type Tab = 'temperaturas' | 'limpiezas' | 'mermas' | 'avisos'
+type Tab = 'temperaturas' | 'limpiezas' | 'mermas' | 'avisos' | 'inventario'
 
 export default function PaginaEmpleadoOperaciones() {
   const { empleado, loading: empLoading } = useEmpleadoActual()
@@ -79,10 +80,11 @@ export default function PaginaEmpleadoOperaciones() {
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 p-1 rounded-xl mb-5 overflow-x-auto">
         {([
-          { id: 'temperaturas', label: 'Temp.', icon: Thermometer },
-          { id: 'limpiezas',    label: 'Limpieza', icon: Sparkles },
-          { id: 'mermas',       label: 'Mermas', icon: Trash2 },
-          { id: 'avisos',       label: 'Avisos', icon: Bell },
+          { id: 'temperaturas', label: 'Temp.',     icon: Thermometer },
+          { id: 'limpiezas',    label: 'Limpieza',  icon: Sparkles },
+          { id: 'mermas',       label: 'Mermas',    icon: Trash2 },
+          { id: 'avisos',       label: 'Avisos',    icon: Bell },
+          { id: 'inventario',   label: 'Inventario', icon: Package },
         ] as { id: Tab; label: string; icon: React.ElementType }[]).map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -108,6 +110,9 @@ export default function PaginaEmpleadoOperaciones() {
       )}
       {tab === 'avisos' && (
         <TabAvisos empleado={empleado} localId={localId} />
+      )}
+      {tab === 'inventario' && (
+        <TabInventario empleado={empleado} />
       )}
     </div>
   )
@@ -574,4 +579,279 @@ function TabAvisos({ empleado, localId }: { empleado: any; localId: number | nul
       </div>
     </div>
   )
+}
+
+// ══════════════════════════════════════════════════════════════
+// TAB: INVENTARIO
+// ══════════════════════════════════════════════════════════════
+function fechaHoy() { return new Date().toISOString().split('T')[0] }
+
+function TabInventario({ empleado }: { empleado: any }) {
+  const [ingredientes, setIngredientes]     = useState<Ingrediente[]>([])
+  const [cantidades, setCantidades]         = useState<Record<number, string>>({})
+  const [busqueda, setBusqueda]             = useState('')
+  const [fecha, setFecha]                   = useState(fechaHoy)
+  const [loading, setLoading]               = useState(true)
+  const [guardando, setGuardando]           = useState(false)
+  const [guardado, setGuardado]             = useState(false)
+  const [cerrado, setCerrado]               = useState(false)
+  const [gruposAbiertos, setGruposAbiertos] = useState<Record<string, boolean>>({})
+
+  const cargar = useCallback(async () => {
+    if (!empleado) return
+    setLoading(true)
+    const [{ data: ings }, { data: ctns }] = await Promise.all([
+      supabase
+        .from('ingredientes')
+        .select('id, nombre_ingrediente, proveedor, formato_compra, unidad_compra, unidad_producto')
+        .order('proveedor')
+        .order('nombre_ingrediente'),
+      supabase
+        .from('inventario_conteos')
+        .select('ingrediente_id, cantidad, cerrado')
+        .eq('empleado_id', empleado.id)
+        .eq('fecha', fecha),
+    ])
+
+    const ingList = (ings ?? []) as Ingrediente[]
+    const ctnList = (ctns ?? []) as Pick<InventarioConteo, 'ingrediente_id' | 'cantidad' | 'cerrado'>[]
+
+    setIngredientes(ingList)
+    setCerrado(ctnList.length > 0 && ctnList.every((c) => c.cerrado))
+
+    const init: Record<number, string> = {}
+    ctnList.forEach((c) => { init[c.ingrediente_id] = c.cantidad != null ? String(c.cantidad) : '' })
+    setCantidades(init)
+
+    // Abrir todos los grupos por defecto
+    const grupos: Record<string, boolean> = {}
+    ingList.forEach((i) => { grupos[i.proveedor?.trim() || 'Sin proveedor'] = true })
+    setGruposAbiertos(grupos)
+    setLoading(false)
+  }, [empleado, fecha])
+
+  useEffect(() => { cargar() }, [cargar])
+
+  const agrupados = useMemo(() => {
+    const q = busqueda.toLowerCase()
+    const filtrados = ingredientes.filter((i) =>
+      !q || i.nombre_ingrediente.toLowerCase().includes(q) || (i.proveedor ?? '').toLowerCase().includes(q)
+    )
+    const grupos: Record<string, Ingrediente[]> = {}
+    filtrados.forEach((i) => {
+      const g = i.proveedor?.trim() || 'Sin proveedor'
+      if (!grupos[g]) grupos[g] = []
+      grupos[g].push(i)
+    })
+    return Object.entries(grupos).sort(([a], [b]) => a.localeCompare(b))
+  }, [ingredientes, busqueda])
+
+  const totalContados = useMemo(
+    () => Object.values(cantidades).filter((v) => v !== '' && Number(v) > 0).length,
+    [cantidades]
+  )
+
+  async function guardar() {
+    if (!empleado || cerrado) return
+    setGuardando(true)
+
+    let grupoId: string | null = null
+    // Intentar recuperar grupo_id existente
+    const { data: existentes } = await supabase
+      .from('inventario_conteos')
+      .select('inventario_grupo_id')
+      .eq('empleado_id', empleado.id)
+      .eq('fecha', fecha)
+      .limit(1)
+      .maybeSingle()
+    grupoId = (existentes as any)?.inventario_grupo_id ?? (
+      typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`
+    )
+
+    const payload = Object.entries(cantidades)
+      .filter(([, v]) => v !== '' && v !== undefined)
+      .map(([ingId, cant]) => ({
+        empleado_id: empleado.id,
+        fecha,
+        local_id: empleado.local_id ?? null,
+        ingrediente_id: Number(ingId),
+        cantidad: parseFloat(cant) || 0,
+        inventario_grupo_id: grupoId,
+        cerrado: false,
+      }))
+
+    if (payload.length > 0) {
+      await supabase
+        .from('inventario_conteos')
+        .upsert(payload, { onConflict: 'empleado_id,fecha,ingrediente_id' })
+    }
+
+    setGuardando(false)
+    setGuardado(true)
+    setTimeout(() => setGuardado(false), 3000)
+    cargar()
+  }
+
+  const esHoy = fecha === fechaHoy()
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <RefreshCw className="animate-spin text-[#F5B731]" size={24} />
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4 pb-32">
+      {/* Cabecera */}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div>
+          <p className="text-sm font-semibold text-gray-700">
+            {totalContados} ingrediente{totalContados !== 1 ? 's' : ''} contado{totalContados !== 1 ? 's' : ''}
+          </p>
+          {conteos_yaGuardados(cantidades) && !cerrado && (
+            <p className="text-xs text-emerald-600 mt-0.5">✓ Datos guardados para este día — editables</p>
+          )}
+        </div>
+        {cerrado && (
+          <span className="flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 text-gray-500 text-xs font-semibold rounded-full">
+            <Lock size={11} /> Cerrado por admin
+          </span>
+        )}
+      </div>
+
+      {/* Selector fecha */}
+      <div className="flex items-center gap-2">
+        <input
+          type="date"
+          value={fecha}
+          max={fechaHoy()}
+          onChange={(e) => { setFecha(e.target.value); setGuardado(false) }}
+          className="px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#F5B731] bg-white"
+        />
+        {!esHoy && (
+          <button onClick={() => setFecha(fechaHoy())} className="text-xs text-[#F5B731] font-semibold hover:underline">
+            Hoy
+          </button>
+        )}
+      </div>
+
+      {/* Buscador */}
+      <div className="relative">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <input
+          type="text"
+          placeholder="Buscar ingrediente o proveedor..."
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          className="w-full pl-9 pr-3 py-3 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#F5B731]"
+        />
+      </div>
+
+      {/* Grupos */}
+      {agrupados.length === 0 ? (
+        <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
+          <Package size={32} className="mx-auto text-gray-200 mb-3" />
+          <p className="text-sm text-gray-400">
+            {busqueda ? 'Sin resultados' : 'No hay ingredientes en la base de datos'}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {agrupados.map(([proveedor, ings]) => {
+            const abierto = gruposAbiertos[proveedor] !== false
+            const contadosEnGrupo = ings.filter((i) => {
+              const v = cantidades[i.id]
+              return v !== '' && v !== undefined && Number(v) > 0
+            }).length
+            return (
+              <div key={proveedor} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <button
+                  className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-100 text-left"
+                  onClick={() => setGruposAbiertos((g) => ({ ...g, [proveedor]: !abierto }))}
+                >
+                  <div>
+                    <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">{proveedor}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{contadosEnGrupo}/{ings.length} contados</p>
+                  </div>
+                  <span className="text-gray-400 flex-shrink-0">
+                    {abierto ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                  </span>
+                </button>
+
+                {abierto && (
+                  <div className="divide-y divide-gray-50">
+                    {ings.map((ing) => {
+                      const val = cantidades[ing.id] ?? ''
+                      const tieneValor = val !== '' && Number(val) > 0
+                      const unidad = ing.unidad_compra ?? ing.unidad_producto ?? ''
+                      return (
+                        <div
+                          key={ing.id}
+                          className={`flex items-center gap-3 px-4 py-3 transition-colors ${tieneValor ? 'bg-[#F5B731]/5' : ''}`}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm leading-snug ${tieneValor ? 'font-semibold text-gray-900' : 'text-gray-700'}`}>
+                              {ing.nombre_ingrediente}
+                            </p>
+                            {ing.formato_compra && (
+                              <p className="text-xs text-gray-400 mt-0.5">{ing.formato_compra}</p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <input
+                              type="number"
+                              inputMode="decimal"
+                              min="0"
+                              step="0.1"
+                              placeholder="0"
+                              disabled={cerrado}
+                              value={val}
+                              onChange={(e) => setCantidades((c) => ({ ...c, [ing.id]: e.target.value }))}
+                              className={`w-20 px-2 py-2.5 text-sm text-center border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#F5B731] bg-white transition-colors disabled:bg-gray-50 disabled:text-gray-400 ${
+                                tieneValor ? 'border-[#F5B731] font-bold text-[#1A1A1A]' : 'border-gray-200 text-gray-500'
+                              }`}
+                            />
+                            {unidad && (
+                              <span className="text-xs text-gray-400 w-10 leading-tight">{unidad}</span>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Botón guardar flotante */}
+      {!cerrado && (
+        <div className="fixed bottom-16 md:bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200 z-40 md:ml-56">
+          <button
+            onClick={guardar}
+            disabled={guardando || totalContados === 0}
+            className={`w-full flex items-center justify-center gap-2 py-4 text-sm font-bold rounded-xl transition-colors disabled:opacity-40 ${
+              guardado ? 'bg-emerald-500 text-white' : 'bg-[#F5B731] text-[#1A1A1A] hover:bg-[#e0a820]'
+            }`}
+          >
+            {guardado ? (
+              <><CheckCircle2 size={18} /> ¡Inventario guardado!</>
+            ) : guardando ? (
+              <><RefreshCw size={18} className="animate-spin" /> Guardando...</>
+            ) : (
+              <><Save size={18} /> Guardar inventario{totalContados > 0 ? ` (${totalContados})` : ''}</>
+            )}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function conteos_yaGuardados(cantidades: Record<number, string>) {
+  return Object.keys(cantidades).length > 0
 }
