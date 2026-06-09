@@ -24,12 +24,16 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   const { pathname, searchParams } = request.nextUrl
   const isLoginPage = pathname.startsWith('/login')
+  const isTrabajoPage = pathname.startsWith('/trabajo')
   const isEmpleadoRoute = pathname.startsWith('/empleado')
   const rol = request.cookies.get('user_rol')?.value
 
   if (process.env.NODE_ENV === 'development') {
     console.log(`[MW] ${pathname} | user=${!!user} | rol=${rol ?? 'none'} | isLogin=${isLoginPage} | isEmpleado=${isEmpleadoRoute}`)
   }
+
+  // ── 0. /trabajo siempre accesible (página pública) ───────────
+  if (isTrabajoPage) return supabaseResponse
 
   // ── 1. /login siempre accesible ───────────────────────────────
   if (isLoginPage) {

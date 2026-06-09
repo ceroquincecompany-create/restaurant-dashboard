@@ -9,7 +9,7 @@ import {
   Package, BookOpen, Layers, Truck, LogOut,
   Users2, Users, CalendarDays, ClipboardList, UserCircle, Wallet,
   ShieldAlert, Trophy, Wrench, Trash2, Thermometer, Sparkles, ClipboardCheck, ShoppingCart,
-  ShoppingBag, Archive, ReceiptText, Link2,
+  ShoppingBag, Archive, ReceiptText, Link2, Briefcase,
 } from 'lucide-react'
 import { supabaseAuth } from '@/lib/supabase-browser'
 import { supabase } from '@/lib/supabase'
@@ -57,6 +57,7 @@ const rrhhItems = [
   { href: '/rrhh/costes', icono: Wallet, label: 'Costes Personal' },
   { href: '/rrhh/sanciones', icono: ShieldAlert, label: 'Sanciones' },
   { href: '/rrhh/incentivos', icono: Trophy, label: 'Incentivos' },
+  { href: '/rrhh/bolsa-trabajo', icono: Briefcase, label: 'Bolsa de Trabajo' },
 ]
 
 function SeccionColapsable({

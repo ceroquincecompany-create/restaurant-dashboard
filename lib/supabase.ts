@@ -273,3 +273,30 @@ export type IncentivosEmpleado = {
   estado: 'pendiente' | 'activado' | 'pagado'
   created_at: string
 }
+
+export type OfertaTrabajo = {
+  id: number
+  puesto: string
+  descripcion: string
+  horario: string
+  salario: string | null
+  fecha_inicio: string | null
+  estado: 'activa' | 'pausada' | 'cerrada'
+  created_at: string
+}
+
+export type Candidatura = {
+  id: number
+  oferta_id: number | null
+  nombre: string
+  telefono: string
+  email: string
+  experiencia: 'sin_experiencia' | 'menos_1_año' | '1_3_años' | 'mas_3_años'
+  disponibilidad: string[]
+  tiene_vehiculo: boolean
+  descripcion: string | null
+  estado: 'recibido' | 'contactado' | 'entrevista' | 'contratado' | 'descartado'
+  notas_proceso: string | null
+  interesante: boolean
+  created_at: string
+}
