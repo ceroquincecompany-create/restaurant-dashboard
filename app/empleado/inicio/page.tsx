@@ -59,9 +59,18 @@ export default function PaginaInicio() {
     const horaActualNum = ahora.getHours()
     const minutoActual = ahora.getMinutes()
 
+    // Para "próximo turno" filtramos por hora actual: si el turno es hoy,
+    // solo lo mostramos si hora_fin aún no ha pasado (o si no tiene hora_fin asignada).
+    const horaStr = `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}:00`
     const [{ data: fich }, { data: prox }, { data: sols }] = await Promise.all([
       supabase.from('fichajes').select('*').eq('empleado_id', empleado.id).eq('fecha', today).maybeSingle(),
-      supabase.from('turnos').select('*').eq('empleado_id', empleado.id).gte('fecha', today).order('fecha').order('hora_inicio').limit(1).maybeSingle(),
+      supabase
+        .from('turnos').select('*')
+        .eq('empleado_id', empleado.id)
+        .or(`fecha.gt.${today},and(fecha.eq.${today},hora_fin.gte.${horaStr})`)
+        .order('fecha', { ascending: true })
+        .order('hora_inicio', { ascending: true })
+        .limit(1).maybeSingle(),
       supabase.from('solicitudes_vacaciones').select('dias').eq('empleado_id', empleado.id).eq('estado', 'aprobada').gte('fecha_inicio', `${añoActual}-01-01`),
     ])
     setFichajeHoy(fich ?? null)

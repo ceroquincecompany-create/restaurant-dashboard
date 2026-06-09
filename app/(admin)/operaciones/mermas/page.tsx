@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabaseAuth as supabase } from '@/lib/supabase-browser'
 import type { Merma, Ingrediente, Local } from '@/lib/supabase'
 import { Plus, X, Trash2, RefreshCw, ChevronDown, AlertTriangle } from 'lucide-react'
 

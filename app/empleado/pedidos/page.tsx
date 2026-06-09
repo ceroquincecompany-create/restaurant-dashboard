@@ -6,7 +6,7 @@ import type { Ingrediente } from '@/lib/supabase'
 import { useEmpleadoActual } from '@/lib/useEmpleado'
 import {
   RefreshCw, ShoppingCart, ChevronDown, ChevronUp,
-  CheckCircle2, AlertTriangle, Package, MessageCircle, Copy, Check, X,
+  CheckCircle2, AlertTriangle, Package, MessageCircle, Copy, Check, X, Plus,
 } from 'lucide-react'
 
 type Proveedor = { id: number; nombre: string; telefono: string | null }
@@ -20,7 +20,6 @@ const ESTADO_CFG = {
   cancelado:  { label: 'Cancelado',  cls: 'bg-gray-100 text-gray-500' },
 }
 
-// ── Genera el texto del mensaje WhatsApp ─────────────────────
 function construirMensajeWA(lineas: LineaPedido[]): string {
   const fecha = new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
   const articulosLineas = lineas
@@ -41,7 +40,6 @@ function ModalWhatsApp({ data, onCerrar }: { data: ModalWAData; onCerrar: () => 
     try {
       await navigator.clipboard.writeText(data.mensaje)
     } catch {
-      // fallback para navegadores sin clipboard API
       const el = document.createElement('textarea')
       el.value = data.mensaje
       document.body.appendChild(el)
@@ -63,10 +61,7 @@ function ModalWhatsApp({ data, onCerrar }: { data: ModalWAData; onCerrar: () => 
 
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/70 px-0 md:px-4">
-      {/* Sheet en móvil, modal centrado en desktop */}
       <div className="w-full md:max-w-md bg-[#0b141a] md:rounded-2xl overflow-hidden flex flex-col max-h-[92vh]">
-
-        {/* Header estilo WhatsApp */}
         <div className="bg-[#202c33] px-5 py-4 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-full bg-[#00a884] flex items-center justify-center">
@@ -77,25 +72,14 @@ function ModalWhatsApp({ data, onCerrar }: { data: ModalWAData; onCerrar: () => 
               <p className="text-xs text-[#8696a0]">Mensaje listo para enviar</p>
             </div>
           </div>
-          <button
-            onClick={onCerrar}
-            className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors"
-          >
+          <button onClick={onCerrar} className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors">
             <X size={18} className="text-[#8696a0]" />
           </button>
         </div>
-
-        {/* Área del mensaje */}
-        <div
-          className="flex-1 overflow-y-auto px-4 py-5"
-          style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, #0d1f17 0%, #0b141a 100%)' }}
-        >
-          {/* Burbuja de mensaje estilo WhatsApp enviado */}
+        <div className="flex-1 overflow-y-auto px-4 py-5" style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, #0d1f17 0%, #0b141a 100%)' }}>
           <div className="flex justify-end">
             <div className="bg-[#005c4b] rounded-2xl rounded-tr-sm px-4 py-3 max-w-[90%] shadow-md">
-              <pre className="text-[15px] leading-relaxed text-white whitespace-pre-wrap font-sans">
-                {data.mensaje}
-              </pre>
+              <pre className="text-[15px] leading-relaxed text-white whitespace-pre-wrap font-sans">{data.mensaje}</pre>
               <div className="flex justify-end mt-1.5">
                 <span className="text-[11px] text-[#8edfcb]">
                   {new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} ✓✓
@@ -104,23 +88,15 @@ function ModalWhatsApp({ data, onCerrar }: { data: ModalWAData; onCerrar: () => 
             </div>
           </div>
         </div>
-
-        {/* Botones de acción */}
         <div className="bg-[#0b141a] border-t border-[#2a3942] px-4 py-4 space-y-3 flex-shrink-0">
           <button
             onClick={copiarMensaje}
             className={`w-full min-h-[56px] rounded-xl text-base font-bold flex items-center justify-center gap-3 transition-all active:scale-[0.98] ${
-              copiado
-                ? 'bg-emerald-600 text-white'
-                : 'bg-[#202c33] text-white hover:bg-[#2a3942]'
+              copiado ? 'bg-emerald-600 text-white' : 'bg-[#202c33] text-white hover:bg-[#2a3942]'
             }`}
           >
-            {copiado
-              ? <><Check size={20} /> Copiado al portapapeles</>
-              : <><Copy size={20} /> Copiar mensaje</>
-            }
+            {copiado ? <><Check size={20} /> Copiado</> : <><Copy size={20} /> Copiar mensaje</>}
           </button>
-
           <button
             onClick={abrirWhatsApp}
             className="w-full min-h-[56px] rounded-xl text-base font-bold bg-[#25d366] text-white flex items-center justify-center gap-3 hover:bg-[#20bd5a] active:scale-[0.98] transition-all shadow-lg shadow-[#25d366]/20"
@@ -131,11 +107,7 @@ function ModalWhatsApp({ data, onCerrar }: { data: ModalWAData; onCerrar: () => 
             Abrir WhatsApp
             {!data.telefono && <span className="text-xs opacity-70">(sin número)</span>}
           </button>
-
-          <button
-            onClick={onCerrar}
-            className="w-full py-3 rounded-xl text-sm font-medium text-[#8696a0] hover:text-white hover:bg-[#202c33] transition-colors min-h-[44px]"
-          >
+          <button onClick={onCerrar} className="w-full py-3 rounded-xl text-sm font-medium text-[#8696a0] hover:text-white hover:bg-[#202c33] transition-colors min-h-[44px]">
             Cerrar
           </button>
         </div>
@@ -149,18 +121,20 @@ function ModalWhatsApp({ data, onCerrar }: { data: ModalWAData; onCerrar: () => 
 // ════════════════════════════════════════════════════════════
 export default function PaginaEmpleadoPedidos() {
   const { empleado, loading: empLoading } = useEmpleadoActual()
-  const [vista, setVista] = useState<'nuevo' | 'historial'>('nuevo')
   const [proveedores, setProveedores] = useState<Proveedor[]>([])
+  const [historial, setHistorial] = useState<any[]>([])
+  const [detalleId, setDetalleId] = useState<number | null>(null)
+  const [detalleLineas, setDetalleLineas] = useState<any[]>([])
+  const [modalNuevo, setModalNuevo] = useState(false)
+  const [modalWA, setModalWA] = useState<ModalWAData | null>(null)
+
+  // Estado del formulario (dentro del modal)
   const [provSelId, setProvSelId] = useState('')
   const [ingredientes, setIngredientes] = useState<Ingrediente[]>([])
   const [lineas, setLineas] = useState<LineaPedido[]>([])
   const [notas, setNotas] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState('')
-  const [historial, setHistorial] = useState<any[]>([])
-  const [detalleId, setDetalleId] = useState<number | null>(null)
-  const [detalleLineas, setDetalleLineas] = useState<any[]>([])
-  const [modalWA, setModalWA] = useState<ModalWAData | null>(null)
 
   useEffect(() => {
     supabase.from('proveedores')
@@ -169,6 +143,19 @@ export default function PaginaEmpleadoPedidos() {
       .order('nombre')
       .then(({ data }) => setProveedores((data ?? []) as Proveedor[]))
   }, [])
+
+  const cargarHistorial = useCallback(async () => {
+    if (!empleado) return
+    const { data } = await supabase
+      .from('pedidos_proveedor')
+      .select('*, proveedores(nombre)')
+      .eq('empleado_nombre', empleado.nombre)
+      .order('created_at', { ascending: false })
+      .limit(30)
+    setHistorial(data ?? [])
+  }, [empleado])
+
+  useEffect(() => { cargarHistorial() }, [cargarHistorial])
 
   useEffect(() => {
     if (!provSelId) { setIngredientes([]); setLineas([]); return }
@@ -182,19 +169,6 @@ export default function PaginaEmpleadoPedidos() {
         setLineas(ings.map(i => ({ ingrediente: i, cantidad: '' })))
       })
   }, [provSelId])
-
-  const cargarHistorial = useCallback(async () => {
-    if (!empleado) return
-    const { data } = await supabase
-      .from('pedidos_proveedor')
-      .select('*, proveedores(nombre)')
-      .eq('empleado_nombre', empleado.nombre)
-      .order('created_at', { ascending: false })
-      .limit(30)
-    setHistorial(data ?? [])
-  }, [empleado])
-
-  useEffect(() => { if (vista === 'historial') cargarHistorial() }, [vista, cargarHistorial])
 
   async function verDetalle(pedidoId: number) {
     if (detalleId === pedidoId) { setDetalleId(null); return }
@@ -213,9 +187,19 @@ export default function PaginaEmpleadoPedidos() {
 
   const proveedorSel = proveedores.find(p => String(p.id) === provSelId)
 
+  function abrirModal() {
+    setProvSelId(''); setLineas([]); setNotas(''); setError('')
+    setModalNuevo(true)
+  }
+
+  function cerrarModal() {
+    setModalNuevo(false)
+    setProvSelId(''); setLineas([]); setNotas(''); setError('')
+  }
+
   async function enviarPedido() {
     if (!empleado || !provSelId || lineasConCantidad.length === 0) {
-      setError('Añade al menos un artículo'); return
+      setError('Selecciona un proveedor y añade al menos un artículo'); return
     }
     setEnviando(true); setError('')
 
@@ -240,15 +224,12 @@ export default function PaginaEmpleadoPedidos() {
       }))
     )
 
-    // Construir mensaje WhatsApp y mostrar modal
     const mensaje = construirMensajeWA(lineasConCantidad)
-    setModalWA({
-      mensaje,
-      telefono: proveedorSel?.telefono ?? null,
-      provNombre: proveedorSel?.nombre ?? 'Proveedor',
-    })
+    setModalWA({ mensaje, telefono: proveedorSel?.telefono ?? null, provNombre: proveedorSel?.nombre ?? 'Proveedor' })
 
-    setProvSelId(''); setLineas([]); setNotas(''); setEnviando(false)
+    cerrarModal()
+    cargarHistorial()
+    setEnviando(false)
   }
 
   if (empLoading) return (
@@ -259,175 +240,39 @@ export default function PaginaEmpleadoPedidos() {
 
   return (
     <div className="px-4 py-5 md:px-6 max-w-2xl">
-      <h1 className="text-xl font-bold text-gray-900 mb-4">Pedidos a proveedor</h1>
 
-      {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl mb-5">
-        {[
-          { id: 'nuevo', label: 'Nuevo pedido' },
-          { id: 'historial', label: 'Mis pedidos' },
-        ].map(({ id, label }) => (
-          <button
-            key={id}
-            onClick={() => setVista(id as 'nuevo' | 'historial')}
-            className={`flex-1 py-2.5 rounded-lg text-sm font-semibold min-h-[40px] transition-colors ${
-              vista === id ? 'bg-white text-[#1A1A1A] shadow-sm' : 'text-gray-500'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-xl font-bold text-gray-900">Pedidos</h1>
+        <button
+          onClick={abrirModal}
+          className="w-11 h-11 rounded-full bg-[#F5B731] text-[#1A1A1A] flex items-center justify-center shadow-md active:scale-95 transition-transform"
+          aria-label="Nuevo pedido"
+        >
+          <Plus size={22} />
+        </button>
       </div>
 
-      {/* ── NUEVO PEDIDO ── */}
-      {vista === 'nuevo' && (
-        <div className="space-y-5">
-          {/* Seleccionar proveedor */}
-          <div>
-            <label className="block text-sm font-medium text-gray-600 mb-2">Proveedor *</label>
-            <div className="grid grid-cols-1 gap-2">
-              {proveedores.map(p => (
-                <button
-                  key={p.id}
-                  onClick={() => setProvSelId(String(p.id))}
-                  className={`flex items-center justify-between px-4 py-4 rounded-xl border text-left transition-colors min-h-[56px] ${
-                    provSelId === String(p.id)
-                      ? 'bg-[#F5B731] border-[#F5B731] text-[#1A1A1A]'
-                      : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  <div>
-                    <p className="text-base font-semibold">{p.nombre}</p>
-                    {p.telefono && (
-                      <p className={`text-xs mt-0.5 ${provSelId === String(p.id) ? 'text-[#1A1A1A]/60' : 'text-gray-400'}`}>
-                        {p.telefono}
-                      </p>
-                    )}
-                  </div>
-                  {provSelId === String(p.id) && <CheckCircle2 size={20} />}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Ingredientes del proveedor */}
-          {provSelId && ingredientes.length > 0 && (
-            <div>
-              <p className="text-sm font-semibold text-gray-600 mb-2">
-                Artículos —{' '}
-                <span className="font-normal text-gray-400">
-                  {lineasConCantidad.length} de {ingredientes.length} con cantidad
-                </span>
-              </p>
-              <div className="space-y-2">
-                {lineas.map((linea, idx) => (
-                  <div
-                    key={linea.ingrediente.id}
-                    className={`bg-white rounded-xl border px-4 py-3 flex items-center gap-3 transition-colors ${
-                      linea.cantidad && Number(linea.cantidad) > 0
-                        ? 'border-[#F5B731]'
-                        : 'border-gray-200'
-                    }`}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-base font-medium text-gray-800 truncate">
-                        {linea.ingrediente.nombre_ingrediente}
-                      </p>
-                      {linea.ingrediente.unidad_producto && (
-                        <p className="text-xs text-gray-400">
-                          {linea.ingrediente.formato_compra ?? linea.ingrediente.unidad_producto}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        min="0"
-                        step="0.1"
-                        className="w-24 px-3 py-2.5 text-base font-bold border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#F5B731] text-center"
-                        placeholder="0"
-                        value={linea.cantidad}
-                        onChange={e => {
-                          const next = [...lineas]
-                          next[idx] = { ...next[idx], cantidad: e.target.value }
-                          setLineas(next)
-                        }}
-                      />
-                      <span className="text-sm text-gray-400 w-8 truncate">
-                        {linea.ingrediente.unidad_producto ?? ''}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {provSelId && ingredientes.length === 0 && (
-            <div className="bg-white rounded-xl border border-gray-200 p-6 text-center">
-              <Package size={28} className="mx-auto text-gray-200 mb-2" />
-              <p className="text-base text-gray-400">Este proveedor no tiene ingredientes asignados</p>
-            </div>
-          )}
-
-          {/* Artículos adicionales / notas */}
-          {provSelId && (
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">
-                Artículos adicionales y notas
-              </label>
-              <textarea
-                className="w-full px-4 py-3 text-base border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#F5B731] resize-none"
-                rows={3}
-                placeholder={`Productos no listados:\nEj: Servilletas x5 bolsas\nEj: Bolsas de basura 50L x3\n\nTambién puedes añadir instrucciones de entrega.`}
-                value={notas}
-                onChange={e => setNotas(e.target.value)}
-              />
-              <p className="text-xs text-gray-400 mt-1">Úsalo para pedir artículos que no están en el catálogo.</p>
-            </div>
-          )}
-
-          {error && (
-            <p className="text-sm text-rose-500 flex items-center gap-1.5">
-              <AlertTriangle size={14} /> {error}
-            </p>
-          )}
-
-          {provSelId && lineasConCantidad.length > 0 && (
-            <button
-              onClick={enviarPedido}
-              disabled={enviando}
-              className="w-full min-h-[60px] rounded-xl text-base font-bold bg-[#F5B731] text-[#1A1A1A] hover:bg-[#e0a820] active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {enviando
-                ? <><RefreshCw size={18} className="animate-spin" /> Enviando...</>
-                : <><ShoppingCart size={20} /> Enviar pedido ({lineasConCantidad.length} artículo{lineasConCantidad.length !== 1 ? 's' : ''})</>
-              }
-            </button>
-          )}
+      {/* ── Historial de pedidos ── */}
+      {historial.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-gray-200 p-10 text-center">
+          <ShoppingCart size={32} className="mx-auto text-gray-200 mb-3" />
+          <p className="text-base font-semibold text-gray-500">No tienes pedidos registrados</p>
+          <p className="text-sm text-gray-400 mt-1">Toca el botón + para crear tu primer pedido</p>
         </div>
-      )}
-
-      {/* ── HISTORIAL ── */}
-      {vista === 'historial' && (
+      ) : (
         <div className="space-y-3">
-          {historial.length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
-              <ShoppingCart size={28} className="mx-auto text-gray-200 mb-2" />
-              <p className="text-base text-gray-400">No tienes pedidos registrados</p>
-            </div>
-          ) : historial.map(p => {
+          {historial.map(p => {
             const cfg = ESTADO_CFG[p.estado as keyof typeof ESTADO_CFG] ?? ESTADO_CFG.pendiente
             const abierto = detalleId === p.id
             return (
-              <div key={p.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div key={p.id} className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
                 <button
-                  className="w-full px-4 py-4 flex items-center justify-between gap-3 text-left"
+                  className="w-full px-4 py-4 flex items-center justify-between gap-3 text-left min-h-[64px]"
                   onClick={() => verDetalle(p.id)}
                 >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap mb-0.5">
                       <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${cfg.cls}`}>
                         {cfg.label}
                       </span>
@@ -435,19 +280,20 @@ export default function PaginaEmpleadoPedidos() {
                         {p.proveedores?.nombre ?? '—'}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-400 mt-0.5">
-                      {new Date(p.created_at).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })}
+                    <p className="text-sm text-gray-400">
+                      {new Date(p.created_at).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
                     </p>
                   </div>
                   {abierto
-                    ? <ChevronUp size={18} className="text-gray-400 flex-shrink-0" />
-                    : <ChevronDown size={18} className="text-gray-400 flex-shrink-0" />
+                    ? <ChevronUp size={18} className="text-gray-300 flex-shrink-0" />
+                    : <ChevronDown size={18} className="text-gray-300 flex-shrink-0" />
                   }
                 </button>
+
                 {abierto && (
-                  <div className="border-t border-gray-100 px-4 py-3 bg-gray-50">
+                  <div className="border-t border-gray-100 px-4 py-3 bg-gray-50/70">
                     {detalleLineas.length === 0 ? (
-                      <p className="text-sm text-gray-400 text-center py-2">Sin líneas</p>
+                      <p className="text-sm text-gray-400 text-center py-2">Sin artículos</p>
                     ) : (
                       <div className="space-y-1.5">
                         {detalleLineas.map((l: any) => (
@@ -460,12 +306,165 @@ export default function PaginaEmpleadoPedidos() {
                         ))}
                       </div>
                     )}
-                    {p.notas && <p className="text-xs text-gray-400 mt-2 italic">{p.notas}</p>}
+                    {p.notas && <p className="text-xs text-gray-400 mt-2 italic border-t border-gray-100 pt-2">{p.notas}</p>}
                   </div>
                 )}
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* ── Modal nuevo pedido ── */}
+      {modalNuevo && (
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/60">
+          <div className="w-full md:max-w-lg bg-white md:rounded-2xl rounded-t-2xl overflow-hidden flex flex-col max-h-[92vh]">
+
+            {/* Header modal */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
+              <h2 className="text-base font-bold text-gray-900">Nuevo pedido</h2>
+              <button
+                onClick={cerrarModal}
+                className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+              >
+                <X size={18} className="text-gray-500" />
+              </button>
+            </div>
+
+            {/* Contenido scrollable */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-5">
+              {/* Realizado por */}
+              <div>
+                <p className="text-xs font-medium text-gray-400 mb-1">Realizado por</p>
+                <p className="text-sm font-semibold text-gray-800">{empleado?.nombre ?? '—'}</p>
+              </div>
+
+              {/* Proveedor */}
+              <div>
+                <p className="text-xs font-medium text-gray-400 mb-2">Proveedor *</p>
+                <div className="space-y-2">
+                  {proveedores.map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => setProvSelId(String(p.id))}
+                      className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl border text-left transition-colors ${
+                        provSelId === String(p.id)
+                          ? 'bg-[#F5B731] border-[#F5B731] text-[#1A1A1A]'
+                          : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      <div>
+                        <p className="text-sm font-semibold">{p.nombre}</p>
+                        {p.telefono && (
+                          <p className={`text-xs mt-0.5 ${provSelId === String(p.id) ? 'text-[#1A1A1A]/60' : 'text-gray-400'}`}>
+                            {p.telefono}
+                          </p>
+                        )}
+                      </div>
+                      {provSelId === String(p.id) && <CheckCircle2 size={18} />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Artículos */}
+              {provSelId && ingredientes.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-gray-400 mb-2">
+                    Artículos
+                    {lineasConCantidad.length > 0 && (
+                      <span className="ml-1.5 text-[#F5B731] font-semibold">
+                        · {lineasConCantidad.length} con cantidad
+                      </span>
+                    )}
+                  </p>
+                  <div className="space-y-2">
+                    {lineas.map((linea, idx) => (
+                      <div
+                        key={linea.ingrediente.id}
+                        className={`bg-white rounded-xl border px-4 py-3 flex items-center gap-3 transition-colors ${
+                          linea.cantidad && Number(linea.cantidad) > 0 ? 'border-[#F5B731]' : 'border-gray-200'
+                        }`}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-800 truncate">
+                            {linea.ingrediente.nombre_ingrediente}
+                          </p>
+                          {linea.ingrediente.unidad_producto && (
+                            <p className="text-xs text-gray-400">
+                              {linea.ingrediente.formato_compra ?? linea.ingrediente.unidad_producto}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            min="0"
+                            step="0.1"
+                            className="w-20 px-2 py-2 text-base font-bold border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F5B731] text-center"
+                            placeholder="0"
+                            value={linea.cantidad}
+                            onChange={e => {
+                              const next = [...lineas]
+                              next[idx] = { ...next[idx], cantidad: e.target.value }
+                              setLineas(next)
+                            }}
+                          />
+                          <span className="text-xs text-gray-400 w-7 truncate">
+                            {linea.ingrediente.unidad_producto ?? ''}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {provSelId && ingredientes.length === 0 && (
+                <div className="bg-gray-50 rounded-xl p-5 text-center">
+                  <Package size={24} className="mx-auto text-gray-200 mb-1.5" />
+                  <p className="text-sm text-gray-400">Este proveedor no tiene ingredientes asignados</p>
+                </div>
+              )}
+
+              {/* Notas */}
+              {provSelId && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-400 mb-1.5">
+                    Artículos adicionales y notas
+                  </label>
+                  <textarea
+                    className="w-full px-4 py-3 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#F5B731] resize-none"
+                    rows={3}
+                    placeholder="Artículos fuera del catálogo, instrucciones de entrega..."
+                    value={notas}
+                    onChange={e => setNotas(e.target.value)}
+                  />
+                </div>
+              )}
+
+              {error && (
+                <p className="text-sm text-rose-500 flex items-center gap-1.5">
+                  <AlertTriangle size={14} /> {error}
+                </p>
+              )}
+            </div>
+
+            {/* Footer fijo */}
+            <div className="px-5 py-4 border-t border-gray-100 flex-shrink-0">
+              <button
+                onClick={enviarPedido}
+                disabled={enviando || !provSelId || lineasConCantidad.length === 0}
+                className="w-full min-h-[56px] rounded-xl text-base font-bold bg-[#F5B731] text-[#1A1A1A] hover:bg-[#e0a820] active:scale-[0.98] transition-all disabled:opacity-40 flex items-center justify-center gap-2"
+              >
+                {enviando
+                  ? <><RefreshCw size={18} className="animate-spin" /> Registrando...</>
+                  : <><ShoppingCart size={20} /> Registrar pedido{lineasConCantidad.length > 0 ? ` (${lineasConCantidad.length})` : ''}</>
+                }
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

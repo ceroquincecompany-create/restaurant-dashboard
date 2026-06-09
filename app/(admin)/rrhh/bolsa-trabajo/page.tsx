@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabaseAuth as supabase } from '@/lib/supabase-browser'
 import type { OfertaTrabajo, Candidatura } from '@/lib/supabase'
 import { QRCodeSVG } from 'qrcode.react'
 import * as XLSX from 'xlsx'
