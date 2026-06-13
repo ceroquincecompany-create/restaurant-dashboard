@@ -25,7 +25,8 @@
       "Bash(curl *)",
       "Bash(npx supabase@latest *)",
       "Bash(CLAUDE_CODE_TMPDIR=/tmp npx tsc *)",
-      "Bash(CLAUDE_CODE_TMPDIR=/tmp grep *)"
+      "Bash(CLAUDE_CODE_TMPDIR=/tmp grep *)",
+      "Bash(TMPDIR=/tmp grep *)"
     ]
   }
 }

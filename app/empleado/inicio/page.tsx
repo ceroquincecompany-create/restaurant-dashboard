@@ -6,8 +6,8 @@ import { supabase } from '@/lib/supabase'
 import type { Fichaje, Turno } from '@/lib/supabase'
 import { useEmpleadoActual } from '@/lib/useEmpleado'
 import {
-  RefreshCw, MapPin, Clock, CalendarDays, Umbrella, AlertCircle,
-  Bell, Thermometer, Sparkles, ChevronRight, Package,
+  RefreshCw, MapPin, CalendarDays, Umbrella, AlertCircle,
+  Bell, Thermometer, Sparkles, ChevronRight, Package, LogIn, LogOut,
 } from 'lucide-react'
 
 // Coordenadas SOFI Pinomonotano — Calle Estibadores 24-25, 41015 Sevilla
@@ -60,7 +60,7 @@ function etiquetaTurno(turno: Turno): string {
 
 export default function PaginaInicio() {
   const { empleado, loading: empLoading } = useEmpleadoActual()
-  const [fichajeHoy, setFichajeHoy] = useState<Fichaje | null | undefined>(undefined)
+  const [fichajesHoy, setFichajesHoy] = useState<Fichaje[] | undefined>(undefined)
   const [proximoTurno, setProximoTurno] = useState<Turno | null>(null)
   const [diasRestantes, setDiasRestantes] = useState<number | null>(null)
   const [fichando, setFichando] = useState(false)
@@ -87,7 +87,7 @@ export default function PaginaInicio() {
     const horaStr = `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}:00`
 
     const [{ data: fich }, { data: prox }, { data: sols }] = await Promise.all([
-      supabase.from('fichajes').select('*').eq('empleado_id', empleado.id).eq('fecha', today).maybeSingle(),
+      supabase.from('fichajes').select('*').eq('empleado_id', empleado.id).eq('fecha', today).order('hora_entrada', { ascending: true }),
       supabase
         .from('turnos').select('*')
         .eq('empleado_id', empleado.id)
@@ -97,7 +97,7 @@ export default function PaginaInicio() {
         .limit(1).maybeSingle(),
       supabase.from('solicitudes_vacaciones').select('dias').eq('empleado_id', empleado.id).eq('estado', 'aprobada').gte('fecha_inicio', `${añoActual}-01-01`),
     ])
-    setFichajeHoy(fich ?? null)
+    setFichajesHoy(fich ?? [])
     setProximoTurno(prox ?? null)
     const usados = (sols ?? []).reduce((s, r) => s + r.dias, 0)
     setDiasRestantes(23 - usados)
@@ -163,17 +163,21 @@ export default function PaginaInicio() {
     if (!empleado || geoStatus !== 'ok') return
     setFichando(true)
     const hora = horaActual()
-    if (!fichajeHoy) {
+    const lista = fichajesHoy ?? []
+    const ultimo = lista[lista.length - 1] ?? null
+    const turnoAbierto = ultimo !== null && ultimo.hora_salida === null
+
+    if (turnoAbierto && ultimo) {
+      const total = ultimo.hora_entrada ? calcHorasTotal(ultimo.hora_entrada, hora) : null
+      await supabase.from('fichajes').update({ hora_salida: hora, horas_total: total }).eq('id', ultimo.id)
+    } else {
       await supabase.from('fichajes').insert({ empleado_id: empleado.id, fecha: today, hora_entrada: hora })
-    } else if (fichajeHoy && !fichajeHoy.hora_salida) {
-      const total = fichajeHoy.hora_entrada ? calcHorasTotal(fichajeHoy.hora_entrada, hora) : null
-      await supabase.from('fichajes').update({ hora_salida: hora, horas_total: total }).eq('id', fichajeHoy.id)
     }
     setFichando(false)
     cargarDatos()
   }
 
-  if (empLoading || fichajeHoy === undefined) {
+  if (empLoading || fichajesHoy === undefined) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <RefreshCw className="animate-spin text-[#F5B731]" size={24} />
@@ -185,13 +189,10 @@ export default function PaginaInicio() {
   const hora = new Date().getHours()
   const saludo = hora < 12 ? 'Buenos días' : hora < 20 ? 'Buenas tardes' : 'Buenas noches'
 
-  const estadoFichaje = !fichajeHoy
-    ? 'sin_fichar'
-    : !fichajeHoy.hora_salida
-    ? 'en_curso'
-    : 'completado'
-
-  const puedefichar = geoStatus === 'ok' && estadoFichaje !== 'completado'
+  const lista = fichajesHoy ?? []
+  const ultimoFichaje = lista[lista.length - 1] ?? null
+  const turnoAbierto = ultimoFichaje !== null && ultimoFichaje.hora_salida === null
+  const puedefichar = geoStatus === 'ok'
 
   return (
     <div className="px-4 py-5 md:px-6 md:py-6 max-w-2xl">
@@ -292,51 +293,39 @@ export default function PaginaInicio() {
 
       {/* ── Botón FICHAR ── */}
       <div className="bg-white rounded-2xl border border-gray-200 p-5 mb-4">
-        {estadoFichaje === 'completado' ? (
-          <div className="flex items-center gap-4 py-2">
-            <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
-              <Clock size={28} className="text-emerald-600" />
-            </div>
-            <div>
-              <p className="text-lg font-bold text-emerald-700">Jornada completada</p>
-              <p className="text-base text-gray-500 mt-0.5">
-                {fichajeHoy?.hora_entrada?.slice(0, 5)} → {fichajeHoy?.hora_salida?.slice(0, 5)}
-                {fichajeHoy?.horas_total != null && (
-                  <span className="font-semibold text-gray-700"> · {fichajeHoy.horas_total}h</span>
-                )}
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div>
-            {estadoFichaje === 'en_curso' && fichajeHoy?.hora_entrada && (
-              <p className="text-base text-gray-500 mb-3 text-center">
-                Entrada a las <strong className="text-gray-800">{fichajeHoy.hora_entrada.slice(0, 5)}</strong>
-              </p>
-            )}
-            <button
-              onClick={fichar}
-              disabled={!puedefichar || fichando}
-              className={`w-full min-h-[80px] rounded-xl text-xl font-bold transition-all active:scale-[0.98] ${
-                puedefichar
-                  ? estadoFichaje === 'sin_fichar'
-                    ? 'bg-[#F5B731] text-[#1A1A1A] hover:bg-[#e0a820]'
-                    : 'bg-[#1A1A1A] text-white hover:bg-gray-800'
-                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-              }`}
-            >
-              {fichando ? (
-                <span className="flex items-center justify-center gap-2">
-                  <RefreshCw size={22} className="animate-spin" /> Fichando...
-                </span>
-              ) : estadoFichaje === 'sin_fichar' ? '▶  FICHAR ENTRADA' : '⏹  FICHAR SALIDA'}
-            </button>
-            {!puedefichar && geoStatus !== 'ok' && geoStatus !== 'checking' && (
-              <p className="text-sm text-rose-500 mt-2 flex items-center justify-center gap-1.5">
-                <AlertCircle size={14} /> Debes estar en el local para fichar
-              </p>
-            )}
-          </div>
+        {turnoAbierto && ultimoFichaje?.hora_entrada && (
+          <p className="text-base text-gray-500 mb-3 text-center">
+            Entrada a las <strong className="text-gray-800">{ultimoFichaje.hora_entrada.slice(0, 5)}</strong>
+          </p>
+        )}
+        {!turnoAbierto && lista.length > 0 && (
+          <p className="text-base text-gray-500 mb-3 text-center">
+            {lista.filter(f => f.hora_salida).reduce((s, f) => s + (f.horas_total ?? 0), 0).toFixed(1)}h trabajadas hoy
+          </p>
+        )}
+        <button
+          onClick={fichar}
+          disabled={!puedefichar || fichando}
+          className={`w-full min-h-[80px] rounded-xl text-xl font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-3 ${
+            puedefichar
+              ? turnoAbierto
+                ? 'bg-[#1A1A1A] text-white hover:bg-gray-800'
+                : 'bg-[#F5B731] text-[#1A1A1A] hover:bg-[#e0a820]'
+              : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+          }`}
+        >
+          {fichando ? (
+            <><RefreshCw size={22} className="animate-spin" /> Fichando...</>
+          ) : turnoAbierto ? (
+            <><LogOut size={24} /> FICHAR SALIDA</>
+          ) : (
+            <><LogIn size={24} /> FICHAR ENTRADA</>
+          )}
+        </button>
+        {!puedefichar && geoStatus !== 'checking' && (
+          <p className="text-sm text-rose-500 mt-2 flex items-center justify-center gap-1.5">
+            <AlertCircle size={14} /> Debes estar en el local para fichar
+          </p>
         )}
       </div>
 
