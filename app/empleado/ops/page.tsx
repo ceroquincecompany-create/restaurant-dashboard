@@ -295,97 +295,215 @@ function TabLimpiezas({ empleado, localId, today }: { empleado: any; localId: nu
 // ══════════════════════════════════════════════════════════════
 // TAB: MERMAS
 // ══════════════════════════════════════════════════════════════
+type ProductoSimple = { id: number; nombre: string; familia: string | null }
+
 function TabMermas({ empleado, localId, today }: { empleado: any; localId: number | null; today: string }) {
+  const [tipoMerma, setTipoMerma] = useState<'ingrediente' | 'plato'>('ingrediente')
   const [ingredientes, setIngredientes] = useState<Ingrediente[]>([])
-  const [busq, setBusq] = useState('')
-  const [dropOpen, setDropOpen] = useState(false)
-  const [selId, setSelId] = useState('')
+  const [productos, setProductos]       = useState<ProductoSimple[]>([])
+  const [costePorProducto, setCostePorProducto] = useState<Record<number, number>>({})
+
+  // Ingrediente picker
+  const [busqIng, setBusqIng]   = useState('')
+  const [dropIng, setDropIng]   = useState(false)
+  const [selIngId, setSelIngId] = useState('')
+  const dropIngRef              = useRef<HTMLDivElement>(null)
+
+  // Producto picker
+  const [busqProd, setBusqProd]   = useState('')
+  const [dropProd, setDropProd]   = useState(false)
+  const [selProdId, setSelProdId] = useState('')
+  const dropProdRef               = useRef<HTMLDivElement>(null)
+
   const [cantidad, setCantidad] = useState('')
-  const [tipo, setTipo] = useState<'desperdicio' | 'consumo_interno'>('desperdicio')
-  const [notas, setNotas] = useState('')
+  const [tipo, setTipo]         = useState<'desperdicio' | 'consumo_interno'>('desperdicio')
+  const [notas, setNotas]       = useState('')
   const [guardando, setGuardando] = useState(false)
-  const [exito, setExito] = useState(false)
-  const [error, setError] = useState('')
-  const dropRef = useRef<HTMLDivElement>(null)
+  const [exito, setExito]       = useState(false)
+  const [error, setError]       = useState('')
 
   useEffect(() => {
-    supabase.from('ingredientes').select('*').order('nombre_ingrediente').then(({ data }) => setIngredientes(data ?? []))
+    Promise.all([
+      supabase.from('ingredientes').select('*').order('nombre_ingrediente'),
+      supabase.from('productos').select('id, nombre, familia').eq('activo', true).order('nombre'),
+      supabase.from('recetas').select('producto_id, cantidad_bruta, ingredientes(precio_unidad_producto)'),
+    ]).then(([{ data: ings }, { data: prods }, { data: recs }]) => {
+      setIngredientes(ings ?? [])
+      setProductos(prods ?? [])
+      const costes: Record<number, number> = {}
+      ;(recs ?? []).forEach((r: any) => {
+        const precio = r.ingredientes?.precio_unidad_producto ?? 0
+        costes[r.producto_id] = (costes[r.producto_id] ?? 0) + (r.cantidad_bruta ?? 0) * precio
+      })
+      setCostePorProducto(costes)
+    })
   }, [])
 
   useEffect(() => {
-    const fn = (e: MouseEvent) => { if (dropRef.current && !dropRef.current.contains(e.target as Node)) setDropOpen(false) }
+    function fn(e: MouseEvent) {
+      if (dropIngRef.current && !dropIngRef.current.contains(e.target as Node)) setDropIng(false)
+      if (dropProdRef.current && !dropProdRef.current.contains(e.target as Node)) setDropProd(false)
+    }
     document.addEventListener('mousedown', fn)
     return () => document.removeEventListener('mousedown', fn)
   }, [])
 
-  const ingFiltrados = useMemo(() =>
-    ingredientes.filter(i => i.nombre_ingrediente.toLowerCase().includes(busq.toLowerCase())).slice(0, 8),
-    [ingredientes, busq]
-  )
-  const ingSel = ingredientes.find(i => String(i.id) === selId)
+  const ingFiltrados  = useMemo(() => ingredientes.filter(i => i.nombre_ingrediente.toLowerCase().includes(busqIng.toLowerCase())).slice(0, 8), [ingredientes, busqIng])
+  const prodFiltrados = useMemo(() => productos.filter(p => p.nombre.toLowerCase().includes(busqProd.toLowerCase())).slice(0, 8), [productos, busqProd])
+  const ingSel  = ingredientes.find(i => String(i.id) === selIngId)
+  const prodSel = productos.find(p => String(p.id) === selProdId)
 
-  function seleccionar(ing: Ingrediente) {
-    setSelId(String(ing.id)); setBusq(ing.nombre_ingrediente); setDropOpen(false)
+  function cambiarTipo(t: 'ingrediente' | 'plato') {
+    setTipoMerma(t); setSelIngId(''); setSelProdId('')
+    setBusqIng(''); setBusqProd(''); setCantidad('')
   }
 
   async function guardar() {
-    if (!selId) { setError('Selecciona un ingrediente'); return }
-    if (!cantidad || Number(cantidad) <= 0) { setError('Introduce una cantidad válida'); return }
-    setGuardando(true); setError('')
-    const coste = ingSel?.precio_unidad_producto ? Number(cantidad) * ingSel.precio_unidad_producto : null
-    await supabase.from('mermas').insert({
+    setError('')
+    let payload: Record<string, unknown> = {
       local_id: localId, empleado_nombre: empleado?.nombre ?? '',
-      tipo, ingrediente_id: Number(selId), cantidad: Number(cantidad), coste,
-      fecha: today, notas: notas.trim() || null,
-    })
-    setBusq(''); setSelId(''); setCantidad(''); setNotas(''); setGuardando(false)
+      tipo, fecha: today, notas: notas.trim() || null,
+    }
+
+    if (tipoMerma === 'ingrediente') {
+      if (!selIngId) { setError('Selecciona un ingrediente'); return }
+      if (!cantidad || Number(cantidad) <= 0) { setError('Introduce una cantidad válida'); return }
+      const coste = ingSel?.precio_unidad_producto ? Number(cantidad) * ingSel.precio_unidad_producto : null
+      payload = { ...payload, tipo_merma: 'ingrediente', ingrediente_id: Number(selIngId), producto_id: null, cantidad: Number(cantidad), coste }
+    } else {
+      if (!selProdId) { setError('Selecciona un plato'); return }
+      const cant = Number(cantidad) || 1
+      const coste = (costePorProducto[Number(selProdId)] ?? 0) * cant
+      payload = { ...payload, tipo_merma: 'plato', producto_id: Number(selProdId), ingrediente_id: null, cantidad: cant, coste: coste || null }
+    }
+
+    setGuardando(true)
+    await supabase.from('mermas').insert(payload)
+    setBusqIng(''); setSelIngId(''); setBusqProd(''); setSelProdId('')
+    setCantidad(''); setNotas(''); setGuardando(false)
     setExito(true); setTimeout(() => setExito(false), 3000)
   }
 
+  const puedeGuardar = tipoMerma === 'ingrediente' ? (!!selIngId && !!cantidad) : !!selProdId
+
   return (
     <div className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium text-gray-600 mb-1">Ingrediente *</label>
-        <div className="relative" ref={dropRef}>
-          <input className="w-full px-4 py-3 text-base border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#F5B731]"
-            placeholder="Buscar ingrediente..." value={busq}
-            onChange={e => { setBusq(e.target.value); setDropOpen(true); if (!e.target.value) setSelId('') }}
-            onFocus={() => setDropOpen(true)} autoComplete="off" />
-          {dropOpen && ingFiltrados.length > 0 && (
-            <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-52 overflow-y-auto">
-              {ingFiltrados.map(ing => (
-                <button key={ing.id} type="button" onMouseDown={() => seleccionar(ing)}
-                  className="w-full text-left px-4 py-3 text-base hover:bg-[#F5B731]/10 flex items-center justify-between min-h-[48px]">
-                  <span className="font-medium text-gray-800">{ing.nombre_ingrediente}</span>
-                  {ing.unidad_producto && <span className="text-sm text-gray-400">{ing.unidad_producto}</span>}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-        {ingSel && <p className="text-sm text-gray-400 mt-1">Unidad: <strong>{ingSel.unidad_producto}</strong></p>}
+
+      {/* Selector Ingrediente / Plato */}
+      <div className="flex gap-2">
+        <button onClick={() => cambiarTipo('ingrediente')}
+          className={`flex-1 py-3 rounded-xl text-sm font-semibold border transition-colors ${tipoMerma === 'ingrediente' ? 'bg-[#1A1A1A] text-white border-[#1A1A1A]' : 'bg-white text-gray-500 border-gray-200'}`}>
+          Ingrediente
+        </button>
+        <button onClick={() => cambiarTipo('plato')}
+          className={`flex-1 py-3 rounded-xl text-sm font-semibold border transition-colors ${tipoMerma === 'plato' ? 'bg-[#1A1A1A] text-white border-[#1A1A1A]' : 'bg-white text-gray-500 border-gray-200'}`}>
+          Plato completo
+        </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-sm font-medium text-gray-600 mb-1">Cantidad *</label>
-          <input type="number" inputMode="decimal" min="0" step="0.001"
-            className="w-full px-4 py-3 text-xl font-bold border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#F5B731] text-center"
-            placeholder="0" value={cantidad} onChange={e => setCantidad(e.target.value)} />
-          {ingSel?.unidad_producto && <p className="text-xs text-gray-400 mt-1 text-center">{ingSel.unidad_producto}</p>}
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-600 mb-1">Tipo</label>
-          <div className="flex flex-col gap-2">
-            {(['desperdicio', 'consumo_interno'] as const).map(t => (
-              <button key={t} onClick={() => setTipo(t)}
-                className={`py-2.5 rounded-xl text-sm font-semibold border transition-colors ${tipo === t ? 'bg-[#F5B731] text-[#1A1A1A] border-[#F5B731]' : 'bg-white text-gray-500 border-gray-200'}`}>
-                {t === 'desperdicio' ? 'Desperdicio' : 'Consumo'}
-              </button>
-            ))}
+      {/* Picker ingrediente */}
+      {tipoMerma === 'ingrediente' && (
+        <>
+          <div>
+            <label className="block text-sm font-medium text-gray-600 mb-1">Ingrediente *</label>
+            <div className="relative" ref={dropIngRef}>
+              <input className="w-full px-4 py-3 text-base border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#F5B731]"
+                placeholder="Buscar ingrediente..." value={busqIng}
+                onChange={e => { setBusqIng(e.target.value); setDropIng(true); if (!e.target.value) setSelIngId('') }}
+                onFocus={() => setDropIng(true)} autoComplete="off" />
+              {dropIng && ingFiltrados.length > 0 && (
+                <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-52 overflow-y-auto">
+                  {ingFiltrados.map(ing => (
+                    <button key={ing.id} type="button" onMouseDown={() => { setSelIngId(String(ing.id)); setBusqIng(ing.nombre_ingrediente); setDropIng(false) }}
+                      className="w-full text-left px-4 py-3 text-base hover:bg-[#F5B731]/10 flex items-center justify-between min-h-[48px]">
+                      <span className="font-medium text-gray-800">{ing.nombre_ingrediente}</span>
+                      {ing.unidad_producto && <span className="text-sm text-gray-400">{ing.unidad_producto}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {ingSel && <p className="text-sm text-gray-400 mt-1">Unidad: <strong>{ingSel.unidad_producto}</strong></p>}
           </div>
-        </div>
-      </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-600 mb-1">Cantidad *</label>
+              <input type="number" inputMode="decimal" min="0" step="0.001"
+                className="w-full px-4 py-3 text-xl font-bold border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#F5B731] text-center"
+                placeholder="0" value={cantidad} onChange={e => setCantidad(e.target.value)} />
+              {ingSel?.unidad_producto && <p className="text-xs text-gray-400 mt-1 text-center">{ingSel.unidad_producto}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-600 mb-1">Tipo</label>
+              <div className="flex flex-col gap-2">
+                {(['desperdicio', 'consumo_interno'] as const).map(t => (
+                  <button key={t} onClick={() => setTipo(t)}
+                    className={`py-2.5 rounded-xl text-sm font-semibold border transition-colors ${tipo === t ? 'bg-[#F5B731] text-[#1A1A1A] border-[#F5B731]' : 'bg-white text-gray-500 border-gray-200'}`}>
+                    {t === 'desperdicio' ? 'Desperdicio' : 'Consumo'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Picker plato */}
+      {tipoMerma === 'plato' && (
+        <>
+          <div>
+            <label className="block text-sm font-medium text-gray-600 mb-1">Plato / Producto *</label>
+            <div className="relative" ref={dropProdRef}>
+              <input className="w-full px-4 py-3 text-base border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#F5B731]"
+                placeholder="Buscar plato..." value={busqProd}
+                onChange={e => { setBusqProd(e.target.value); setDropProd(true); if (!e.target.value) setSelProdId('') }}
+                onFocus={() => setDropProd(true)} autoComplete="off" />
+              {dropProd && prodFiltrados.length > 0 && (
+                <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-52 overflow-y-auto">
+                  {prodFiltrados.map(prod => (
+                    <button key={prod.id} type="button" onMouseDown={() => { setSelProdId(String(prod.id)); setBusqProd(prod.nombre); setDropProd(false); if (!cantidad) setCantidad('1') }}
+                      className="w-full text-left px-4 py-3 text-base hover:bg-[#F5B731]/10 flex items-center justify-between min-h-[48px]">
+                      <span className="font-medium text-gray-800">{prod.nombre}</span>
+                      {prod.familia && <span className="text-sm text-gray-400">{prod.familia}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {selProdId && (
+            <div className="flex items-center gap-3 bg-violet-50 border border-violet-200 rounded-xl px-4 py-3">
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-violet-800">
+                  Se registrará como {Number(cantidad) > 1 ? `${cantidad} platos completos tirados` : '1 plato completo tirado'}
+                </p>
+                <p className="text-xs text-violet-600 mt-0.5">{prodSel?.nombre}</p>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-600 mb-1">Cantidad (platos) *</label>
+              <input type="number" inputMode="numeric" min="1" step="1"
+                className="w-full px-4 py-3 text-xl font-bold border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#F5B731] text-center"
+                placeholder="1" value={cantidad} onChange={e => setCantidad(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-600 mb-1">Tipo</label>
+              <div className="flex flex-col gap-2">
+                {(['desperdicio', 'consumo_interno'] as const).map(t => (
+                  <button key={t} onClick={() => setTipo(t)}
+                    className={`py-2.5 rounded-xl text-sm font-semibold border transition-colors ${tipo === t ? 'bg-[#F5B731] text-[#1A1A1A] border-[#F5B731]' : 'bg-white text-gray-500 border-gray-200'}`}>
+                    {t === 'desperdicio' ? 'Desperdicio' : 'Consumo'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       <div>
         <label className="block text-sm font-medium text-gray-600 mb-1">Notas</label>
@@ -401,7 +519,7 @@ function TabMermas({ empleado, localId, today }: { empleado: any; localId: numbe
         </div>
       )}
 
-      <button onClick={guardar} disabled={guardando || !selId || !cantidad}
+      <button onClick={guardar} disabled={guardando || !puedeGuardar}
         className="w-full min-h-[56px] rounded-xl text-base font-bold bg-[#F5B731] text-[#1A1A1A] hover:bg-[#e0a820] active:scale-[0.98] transition-all disabled:opacity-40">
         {guardando ? <span className="flex items-center justify-center gap-2"><RefreshCw size={18} className="animate-spin" /> Guardando...</span> : 'Registrar merma'}
       </button>

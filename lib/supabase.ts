@@ -144,7 +144,9 @@ export type Merma = {
   local_id: number | null
   empleado_nombre: string
   tipo: 'consumo_interno' | 'desperdicio'
+  tipo_merma: 'ingrediente' | 'plato' | null
   ingrediente_id: number | null
+  producto_id: number | null
   cantidad: number
   coste: number | null
   fecha: string
