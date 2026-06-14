@@ -67,7 +67,7 @@ export default function PaginaFichaje() {
         .select('*')
         .eq('empleado_id', empleado.id)
         .eq('fecha', today)
-        .order('hora_entrada', { ascending: true }),
+        .order('created_at', { ascending: true }),
       supabase
         .from('fichajes')
         .select('*')
