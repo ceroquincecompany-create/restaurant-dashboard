@@ -2,22 +2,44 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useState } from 'react'
-import { Home, CalendarDays, Clock, Umbrella, Package, Wrench, ShoppingCart, LogOut, X, FileImage } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Home, CalendarDays, Wrench, ShoppingCart, LogOut, X, MessagesSquare } from 'lucide-react'
 import { supabaseAuth } from '@/lib/supabase-browser'
-
-const navMovil = [
-  { href: '/empleado/inicio',          icono: Home,          label: 'Inicio' },
-  { href: '/empleado/ops',             icono: Wrench,        label: 'Ops' },
-  { href: '/empleado/pedidos',         icono: ShoppingCart,  label: 'Compras' },
-  { href: '/empleado/compras/albaran', icono: FileImage,     label: 'Albarán' },
-  { href: '/empleado/horario',         icono: CalendarDays,  label: 'Horario' },
-]
+import { supabase } from '@/lib/supabase'
+import { useEmpleadoActual } from '@/lib/useEmpleado'
 
 export default function EmpleadoLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
+  const { empleado } = useEmpleadoActual()
   const [modalLogout, setModalLogout] = useState(false)
+  const [anunciosSinLeer, setAnunciosSinLeer] = useState(0)
+
+  useEffect(() => {
+    if (!empleado?.id) return
+    async function contarNoLeidos() {
+      const { data: vistos } = await supabase
+        .from('anuncios_vistos')
+        .select('anuncio_id')
+        .eq('empleado_id', empleado!.id)
+      const vistosIds = (vistos ?? []).map((v: any) => v.anuncio_id as number)
+      let q = supabase.from('anuncios').select('id', { count: 'exact', head: true })
+      if (vistosIds.length > 0) q = q.not('id', 'in', `(${vistosIds.join(',')})`)
+      const { count } = await q
+      setAnunciosSinLeer(count ?? 0)
+    }
+    contarNoLeidos()
+    const interval = setInterval(contarNoLeidos, 30000)
+    return () => clearInterval(interval)
+  }, [empleado?.id])
+
+  const navMovil = [
+    { href: '/empleado/inicio',     icono: Home,          label: 'Inicio' },
+    { href: '/empleado/ops',        icono: Wrench,        label: 'Ops' },
+    { href: '/empleado/pedidos',    icono: ShoppingCart,  label: 'Compras' },
+    { href: '/empleado/horario',    icono: CalendarDays,  label: 'Horario' },
+    { href: '/empleado/comunidad',  icono: MessagesSquare, label: 'Comunidad', badge: anunciosSinLeer },
+  ]
 
   async function cerrarSesion() {
     await supabaseAuth.auth.signOut()
@@ -51,17 +73,24 @@ export default function EmpleadoLayout({ children }: { children: React.ReactNode
       {/* ── Bottom navigation ────────────────────────────── */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-[0_-2px_12px_rgba(0,0,0,0.06)]">
         <div className="flex items-stretch justify-around h-16">
-          {navMovil.map(({ href, icono: Icono, label }) => {
+          {navMovil.map(({ href, icono: Icono, label, badge }) => {
             const activo = pathname === href || pathname.startsWith(href + '/')
             return (
               <Link
                 key={href}
                 href={href}
-                className={`flex flex-col items-center justify-center gap-1 flex-1 min-h-[44px] transition-colors ${
+                className={`flex flex-col items-center justify-center gap-1 flex-1 min-h-[44px] transition-colors relative ${
                   activo ? 'text-[#F5B731]' : 'text-gray-400 active:text-gray-600'
                 }`}
               >
-                <Icono size={22} strokeWidth={activo ? 2.5 : 1.8} />
+                <div className="relative">
+                  <Icono size={22} strokeWidth={activo ? 2.5 : 1.8} />
+                  {(badge ?? 0) > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] bg-rose-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 leading-none">
+                      {(badge ?? 0) > 9 ? '9+' : badge}
+                    </span>
+                  )}
+                </div>
                 <span className={`text-[10px] font-semibold leading-none ${activo ? 'text-[#F5B731]' : 'text-gray-400'}`}>
                   {label}
                 </span>

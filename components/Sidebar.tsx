@@ -10,6 +10,7 @@ import {
   Users2, Users, CalendarDays, ClipboardList, UserCircle, Wallet,
   ShieldAlert, Trophy, Wrench, Trash2, Thermometer, Sparkles, ClipboardCheck, ShoppingCart,
   ShoppingBag, Archive, ReceiptText, Link2, Briefcase,
+  MessagesSquare, Megaphone, NotebookPen, Star, GraduationCap,
 } from 'lucide-react'
 import { supabaseAuth } from '@/lib/supabase-browser'
 import { supabase } from '@/lib/supabase'
@@ -48,6 +49,14 @@ const operacionesItems = [
   { href: '/operaciones/mermas', icono: Trash2, label: 'Mermas' },
   { href: '/operaciones/appcc', icono: ClipboardCheck, label: 'Visita APPCC' },
   { href: '/operaciones/pedidos', icono: ShoppingCart, label: 'Pedidos' },
+]
+
+const comunidadItems = [
+  { href: '/comunidad/general',         icono: MessagesSquare, label: 'Chat de equipo' },
+  { href: '/comunidad/anuncios',        icono: Megaphone,      label: 'Anuncios' },
+  { href: '/comunidad/bitacora',        icono: NotebookPen,    label: 'Bitácora' },
+  { href: '/comunidad/reconocimientos', icono: Star,           label: 'Reconocimientos' },
+  { href: '/comunidad/formacion',       icono: GraduationCap,  label: 'Formación' },
 ]
 
 const rrhhItems = [
@@ -256,6 +265,13 @@ export default function Sidebar() {
           badgeRojo={bajas}
           badgeAmarillo={vacaciones}
           badgeNaranja={sancionesActivas + vacPendientes}
+        />
+
+        <SeccionColapsable
+          icono={MessagesSquare}
+          label="Comunidad"
+          items={comunidadItems}
+          prefijo="/comunidad"
         />
       </nav>
 

@@ -36,6 +36,7 @@ export type Empleado = {
   salario_bruto: number | null
   coste_empresa_pct: number
   fecha_inicio: string | null
+  fecha_nacimiento: string | null
   estado: 'activo' | 'baja' | 'vacaciones'
   rol: 'admin' | 'empleado'
   iban: string | null
@@ -302,6 +303,57 @@ export type Candidatura = {
   estado: 'recibido' | 'contactado' | 'entrevista' | 'contratado' | 'descartado'
   notas_proceso: string | null
   interesante: boolean
+  created_at: string
+}
+
+export type MensajeChat = {
+  id: number
+  local_id: number | null
+  empleado_nombre: string
+  mensaje: string
+  created_at: string
+}
+
+export type Anuncio = {
+  id: number
+  local_id: number | null
+  titulo: string
+  texto: string
+  fijado: boolean
+  created_at: string
+}
+
+export type AnuncioVisto = {
+  id: number
+  anuncio_id: number
+  empleado_id: number
+  fecha_visto: string
+}
+
+export type BitacoraTurno = {
+  id: number
+  local_id: number | null
+  empleado_nombre: string
+  turno: 'mañana' | 'tarde' | 'noche'
+  nota: string
+  created_at: string
+}
+
+export type Reconocimiento = {
+  id: number
+  local_id: number | null
+  empleado_id: number | null
+  tipo: string
+  motivo: string
+  created_at: string
+}
+
+export type DocumentoFormacion = {
+  id: number
+  titulo: string
+  descripcion: string | null
+  categoria: 'Manual' | 'Formación' | 'Protocolo' | 'Otro'
+  archivo_url: string
   created_at: string
 }
 
