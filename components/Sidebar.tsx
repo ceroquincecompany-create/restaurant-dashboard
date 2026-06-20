@@ -75,6 +75,7 @@ function SeccionColapsable({
   label,
   items,
   prefijo,
+  onClose,
   badgeRojo,
   badgeAmarillo,
   badgeNaranja,
@@ -83,6 +84,7 @@ function SeccionColapsable({
   label: string
   items: { href: string; icono: React.ElementType; label: string }[]
   prefijo: string
+  onClose?: () => void
   badgeRojo?: number
   badgeAmarillo?: number
   badgeNaranja?: number
@@ -134,6 +136,7 @@ function SeccionColapsable({
               <Link
                 key={href}
                 href={href}
+                onClick={onClose}
                 className={`flex items-center gap-2 px-2 py-2 rounded-lg text-xs font-medium transition-colors ${
                   itemActivo ? 'text-[#F5B731]' : 'text-white/50 hover:text-white hover:bg-white/5'
                 }`}
@@ -149,7 +152,7 @@ function SeccionColapsable({
   )
 }
 
-export default function Sidebar() {
+export default function Sidebar({ isOpen = false, onClose }: { isOpen?: boolean; onClose?: () => void }) {
   const pathname = usePathname()
   const router = useRouter()
   const [bajas, setBajas] = useState(0)
@@ -168,7 +171,6 @@ export default function Sidebar() {
         setVacaciones(data.filter((e) => e.estado === 'vacaciones').length)
       })
 
-    // Sanciones activas este trimestre
     const hoy = new Date()
     const mes = hoy.getMonth() + 1
     const q = Math.ceil(mes / 3)
@@ -201,14 +203,28 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-60 bg-[#1A1A1A] flex flex-col">
-      <div className="px-5 py-5 border-b border-white/10">
-        <div className="flex items-center gap-3">
-          <img src="/favicon.png" alt="SOFI" className="h-10 w-10 rounded-lg object-contain bg-white p-0.5" />
-          <div>
-            <p className="text-sm font-bold text-white tracking-wide">SOFI</p>
-            <p className="text-xs text-white/40">Panel de gestión</p>
-          </div>
+    <aside
+      className={`
+        fixed left-0 top-0 h-screen w-60 bg-[#1A1A1A] flex flex-col z-50
+        transition-transform duration-300 ease-in-out
+        ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+      `}
+    >
+      {/* Logo — solo visible en desktop (en móvil lo muestra el header de AppShell) */}
+      <div className="px-5 py-5 border-b border-white/10 hidden md:flex items-center gap-3">
+        <img src="/favicon.png" alt="SOFI" className="h-10 w-10 rounded-lg object-contain bg-white p-0.5" />
+        <div>
+          <p className="text-sm font-bold text-white tracking-wide">SOFI</p>
+          <p className="text-xs text-white/40">Panel de gestión</p>
+        </div>
+      </div>
+
+      {/* Logo en móvil — dentro del drawer ocupa el mismo espacio que el header */}
+      <div className="md:hidden h-12 px-5 flex items-center border-b border-white/10 gap-3">
+        <img src="/favicon.png" alt="SOFI" className="h-7 w-7 rounded-md object-contain bg-white p-0.5" />
+        <div>
+          <p className="text-sm font-bold text-white tracking-wide">SOFI</p>
+          <p className="text-xs text-white/40">Panel de gestión</p>
         </div>
       </div>
 
@@ -219,6 +235,7 @@ export default function Sidebar() {
             <Link
               key={href}
               href={href}
+              onClick={onClose}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 activo ? 'bg-[#F5B731] text-[#1A1A1A]' : 'text-white/60 hover:bg-white/10 hover:text-white'
               }`}
@@ -229,50 +246,21 @@ export default function Sidebar() {
           )
         })}
 
-        <SeccionColapsable
-          icono={Package}
-          label="Producto"
-          items={productoItems}
-          prefijo="/producto"
-        />
-
-        <SeccionColapsable
-          icono={TrendingUp}
-          label="Finanzas"
-          items={finanzasItems}
-          prefijo="/finanzas"
-        />
-
-        <SeccionColapsable
-          icono={ShoppingBag}
-          label="Compras"
-          items={comprasItems}
-          prefijo="/compras"
-        />
-
-        <SeccionColapsable
-          icono={Wrench}
-          label="Operaciones"
-          items={operacionesItems}
-          prefijo="/operaciones"
-        />
-
+        <SeccionColapsable icono={Package}    label="Producto"    items={productoItems}    prefijo="/producto"    onClose={onClose} />
+        <SeccionColapsable icono={TrendingUp} label="Finanzas"    items={finanzasItems}    prefijo="/finanzas"    onClose={onClose} />
+        <SeccionColapsable icono={ShoppingBag} label="Compras"   items={comprasItems}     prefijo="/compras"     onClose={onClose} />
+        <SeccionColapsable icono={Wrench}     label="Operaciones" items={operacionesItems} prefijo="/operaciones" onClose={onClose} />
         <SeccionColapsable
           icono={Users2}
           label="RRHH"
           items={rrhhItems}
           prefijo="/rrhh"
+          onClose={onClose}
           badgeRojo={bajas}
           badgeAmarillo={vacaciones}
           badgeNaranja={sancionesActivas + vacPendientes}
         />
-
-        <SeccionColapsable
-          icono={MessagesSquare}
-          label="Comunidad"
-          items={comunidadItems}
-          prefijo="/comunidad"
-        />
+        <SeccionColapsable icono={MessagesSquare} label="Comunidad" items={comunidadItems} prefijo="/comunidad" onClose={onClose} />
       </nav>
 
       <div className="px-3 py-3 border-t border-white/10 space-y-0.5">
