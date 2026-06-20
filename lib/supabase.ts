@@ -348,6 +348,27 @@ export type Reconocimiento = {
   created_at: string
 }
 
+export type DocumentoFirma = {
+  id: number
+  tipo: string
+  titulo: string
+  texto: string
+  empleado_id: number | null
+  fecha_limite: string | null
+  created_at: string
+}
+
+export type FirmaRegistro = {
+  id: number
+  documento_id: number
+  empleado_id: number
+  firmado: boolean
+  fecha_firma: string | null
+  firma_data: string | null
+  nombre_firmante: string | null
+  created_at: string
+}
+
 export type DocumentoFormacion = {
   id: number
   titulo: string

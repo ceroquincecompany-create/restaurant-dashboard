@@ -17,19 +17,34 @@ export default function EmpleadoLayout({ children }: { children: React.ReactNode
 
   useEffect(() => {
     if (!empleado?.id) return
-    async function contarNoLeidos() {
+    const empId = empleado.id
+
+    async function contarPendientes() {
+      // Anuncios sin leer
       const { data: vistos } = await supabase
         .from('anuncios_vistos')
         .select('anuncio_id')
-        .eq('empleado_id', empleado!.id)
+        .eq('empleado_id', empId)
       const vistosIds = (vistos ?? []).map((v: any) => v.anuncio_id as number)
-      let q = supabase.from('anuncios').select('id', { count: 'exact', head: true })
-      if (vistosIds.length > 0) q = q.not('id', 'in', `(${vistosIds.join(',')})`)
-      const { count } = await q
-      setAnunciosSinLeer(count ?? 0)
+      let qAnu = supabase.from('anuncios').select('id', { count: 'exact', head: true })
+      if (vistosIds.length > 0) qAnu = qAnu.not('id', 'in', `(${vistosIds.join(',')})`)
+      const { count: noLeidos } = await qAnu
+
+      // Firmas pendientes (docs propios + todos, menos los ya firmados)
+      const [{ data: dDirect }, { data: dTodos }, { data: firmadas }] = await Promise.all([
+        supabase.from('documentos_firma').select('id').eq('empleado_id', empId),
+        supabase.from('documentos_firma').select('id').is('empleado_id', null),
+        supabase.from('firmas').select('documento_id').eq('empleado_id', empId).eq('firmado', true),
+      ])
+      const allDocIds = [...(dDirect ?? []), ...(dTodos ?? [])].map((d: any) => d.id as number)
+      const firmadasIds = new Set((firmadas ?? []).map((f: any) => f.documento_id as number))
+      const firmasPendientes = allDocIds.filter(id => !firmadasIds.has(id)).length
+
+      setAnunciosSinLeer((noLeidos ?? 0) + firmasPendientes)
     }
-    contarNoLeidos()
-    const interval = setInterval(contarNoLeidos, 30000)
+
+    contarPendientes()
+    const interval = setInterval(contarPendientes, 30000)
     return () => clearInterval(interval)
   }, [empleado?.id])
 
