@@ -35,6 +35,7 @@ const finanzasItems = [
 
 const comprasItems = [
   { href: '/compras/pedidos',    icono: ShoppingCart,  label: 'Pedidos Proveedor' },
+  { href: '/compras/albaranes',  icono: FileText,      label: 'Albaranes IA' },
   { href: '/compras/entregas',   icono: Truck,         label: 'Entregas' },
   { href: '/compras/inventario', icono: Archive,       label: 'Inventario Local' },
   { href: '/compras/total',      icono: ReceiptText,   label: 'Total Compras' },

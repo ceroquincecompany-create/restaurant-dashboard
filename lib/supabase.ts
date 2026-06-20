@@ -304,3 +304,33 @@ export type Candidatura = {
   interesante: boolean
   created_at: string
 }
+
+export type Albaran = {
+  id: number
+  local_id: number | null
+  empleado_nombre: string
+  proveedor_id: number | null
+  proveedor_nombre: string | null
+  numero_albaran: string | null
+  fecha_documento: string | null
+  total: number | null
+  temperatura_recepcion: number | null
+  notas: string | null
+  imagen_url: string | null
+  datos_extraidos: Record<string, unknown> | null
+  estado: 'pendiente' | 'revisado' | 'contabilizado'
+  contabilizado: boolean
+  created_at: string
+}
+
+export type AlbaranLinea = {
+  id: number
+  albaran_id: number
+  nombre_producto: string
+  cantidad: number | null
+  unidad: string | null
+  precio_unitario: number | null
+  total_linea: number | null
+  ingrediente_id: number | null
+  created_at: string
+}

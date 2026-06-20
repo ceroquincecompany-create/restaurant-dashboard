@@ -3,14 +3,15 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { Home, CalendarDays, Clock, Umbrella, Package, Wrench, ShoppingCart, LogOut, X } from 'lucide-react'
+import { Home, CalendarDays, Clock, Umbrella, Package, Wrench, ShoppingCart, LogOut, X, FileImage } from 'lucide-react'
 import { supabaseAuth } from '@/lib/supabase-browser'
 
 const navMovil = [
-  { href: '/empleado/inicio',  icono: Home,          label: 'Inicio' },
-  { href: '/empleado/ops',     icono: Wrench,        label: 'Ops' },
-  { href: '/empleado/pedidos', icono: ShoppingCart,  label: 'Compras' },
-  { href: '/empleado/horario', icono: CalendarDays,  label: 'Horario' },
+  { href: '/empleado/inicio',          icono: Home,          label: 'Inicio' },
+  { href: '/empleado/ops',             icono: Wrench,        label: 'Ops' },
+  { href: '/empleado/pedidos',         icono: ShoppingCart,  label: 'Compras' },
+  { href: '/empleado/compras/albaran', icono: FileImage,     label: 'Albarán' },
+  { href: '/empleado/horario',         icono: CalendarDays,  label: 'Horario' },
 ]
 
 export default function EmpleadoLayout({ children }: { children: React.ReactNode }) {

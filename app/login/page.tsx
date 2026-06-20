@@ -1,18 +1,15 @@
 'use client'
 
 import { Suspense, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { supabaseAuth } from '@/lib/supabase-browser'
 import { supabase } from '@/lib/supabase'
-import { ShieldAlert, ArrowLeft, CheckCircle } from 'lucide-react'
+import { ArrowLeft, CheckCircle } from 'lucide-react'
 
 const inputCls = 'w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/20 text-sm focus:outline-none focus:ring-2 focus:ring-[#F5B731] focus:border-transparent'
 
 function LoginForm() {
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const ipRestringida = searchParams.get('error') === 'ip_restringida'
-
   const [vista, setVista] = useState<'login' | 'recuperar'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -74,17 +71,6 @@ function LoginForm() {
           <h1 className="text-2xl font-bold text-white tracking-wide">SOFI</h1>
           <p className="text-sm text-white/40 mt-1">Panel de gestión</p>
         </div>
-
-        {/* Alerta IP */}
-        {ipRestringida && (
-          <div className="mb-5 flex items-start gap-3 bg-rose-500/10 border border-rose-500/30 rounded-xl px-4 py-3">
-            <ShieldAlert size={18} className="text-rose-400 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-semibold text-rose-400">Acceso restringido</p>
-              <p className="text-xs text-rose-400/80 mt-0.5">Acceso restringido a dispositivo autorizado</p>
-            </div>
-          </div>
-        )}
 
         {/* ── Vista: Login ─────────────────────────────── */}
         {vista === 'login' && (
