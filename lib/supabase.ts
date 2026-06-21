@@ -136,6 +136,7 @@ export type SolicitudVacaciones = {
   fecha_fin: string
   dias: number
   estado: 'pendiente' | 'aprobada' | 'rechazada'
+  documento_firma_id: number | null
   notas: string | null
   created_at: string
 }

@@ -10,7 +10,7 @@ import {
   Users2, Users, CalendarDays, ClipboardList, UserCircle, Wallet,
   ShieldAlert, Trophy, Wrench, Trash2, Thermometer, Sparkles, ClipboardCheck, ShoppingCart,
   ShoppingBag, Archive, ReceiptText, Link2, Briefcase,
-  MessagesSquare, Megaphone, NotebookPen, Star, GraduationCap, FileSignature,
+  MessagesSquare, Megaphone, NotebookPen, Star, GraduationCap, FileSignature, Umbrella,
 } from 'lucide-react'
 import { supabaseAuth } from '@/lib/supabase-browser'
 import { supabase } from '@/lib/supabase'
@@ -68,6 +68,7 @@ const rrhhItems = [
   { href: '/rrhh/sanciones', icono: ShieldAlert, label: 'Sanciones' },
   { href: '/rrhh/incentivos', icono: Trophy, label: 'Incentivos' },
   { href: '/rrhh/bolsa-trabajo',  icono: Briefcase,      label: 'Bolsa de Trabajo' },
+  { href: '/rrhh/vacaciones',    icono: Umbrella,       label: 'Vacaciones' },
   { href: '/rrhh/firmas',        icono: FileSignature,  label: 'Firmas digitales' },
 ]
 
