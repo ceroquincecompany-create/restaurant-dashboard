@@ -350,9 +350,9 @@ export default function PaginaInicio() {
         </div>
 
         {/* Vacaciones */}
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <Link href="/empleado/vacaciones" className="bg-white rounded-xl border border-gray-200 p-4 active:scale-[0.97] transition-all block">
           <div className="flex items-center gap-2 mb-3">
-            <Umbrella size={16} className="text-gray-400" />
+            <Umbrella size={16} className="text-[#F5B731]" />
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Vacaciones</p>
           </div>
           {diasRestantes !== null ? (
@@ -364,7 +364,7 @@ export default function PaginaInicio() {
           ) : (
             <p className="text-base text-gray-400">Cargando...</p>
           )}
-        </div>
+        </Link>
       </div>
     </div>
   )
