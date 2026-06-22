@@ -25,6 +25,17 @@ type SolicitudConEmpleado = {
   empleados: { nombre: string }
 }
 
+type TabFicha = 'general' | 'vacaciones' | 'sanciones' | 'fichajes'
+
+type SancionFicha = { id: number; tipo: string; fecha: string; descripcion: string | null }
+type VacaFicha    = { id: number; fecha_inicio: string; fecha_fin: string; dias: number; estado: 'pendiente' | 'aprobada' | 'rechazada'; notas: string | null }
+type FichajeFicha = { id: number; fecha: string; hora_entrada: string | null; hora_salida: string | null; horas_total: number | null }
+
+const TIPOS_SANCION: Record<string, string> = {
+  aviso_verbal: 'Aviso verbal', amonestacion_escrita: 'Amonestación escrita',
+  sancion_grave: 'Sanción grave', sancion_muy_grave: 'Sanción muy grave',
+}
+
 type FormEmp = {
   nombre: string
   puesto: string
@@ -521,6 +532,11 @@ export default function PaginaEquipo() {
   const [solicitudes, setSolicitudes]     = useState<SolicitudConEmpleado[]>([])
   const [procesando, setProcesando]       = useState<number | null>(null)
   const [modalDarAcceso, setModalDarAcceso] = useState<Empleado | null>(null)
+  const [tabFicha, setTabFicha]           = useState<TabFicha>('general')
+  const [fichaLoading, setFichaLoading]   = useState(false)
+  const [fichaVacaciones, setFichaVacaciones] = useState<VacaFicha[]>([])
+  const [fichaSanciones, setFichaSanciones]   = useState<SancionFicha[]>([])
+  const [fichaFichajes, setFichaFichajes]     = useState<FichajeFicha[]>([])
 
   const cargarSolicitudes = useCallback(async () => {
     const { data } = await supabase
@@ -542,10 +558,31 @@ export default function PaginaEquipo() {
     cargarSolicitudes()
   }, [cargarSolicitudes])
 
+  async function cargarFichaData(empId: number) {
+    setFichaLoading(true)
+    const hace60 = new Date(); hace60.setDate(hace60.getDate() - 60)
+    const from60 = hace60.toISOString().split('T')[0]
+    const [{ data: vacas }, { data: sancio }, { data: fichs }] = await Promise.all([
+      supabase.from('solicitudes_vacaciones').select('id,fecha_inicio,fecha_fin,dias,estado,notas').eq('empleado_id', empId).order('created_at', { ascending: false }),
+      supabase.from('sanciones').select('id,tipo,fecha,descripcion').eq('empleado_id', empId).order('fecha', { ascending: false }),
+      supabase.from('fichajes').select('id,fecha,hora_entrada,hora_salida,horas_total').eq('empleado_id', empId).gte('fecha', from60).order('fecha', { ascending: false }),
+    ])
+    setFichaVacaciones((vacas ?? []) as VacaFicha[])
+    setFichaSanciones((sancio ?? []) as SancionFicha[])
+    setFichaFichajes((fichs ?? []) as FichajeFicha[])
+    setFichaLoading(false)
+  }
+
   async function resolverSolicitud(id: number, estado: 'aprobada' | 'rechazada') {
     setProcesando(id)
     await supabase.from('solicitudes_vacaciones').update({ estado }).eq('id', id)
     setProcesando(null)
+    cargarSolicitudes()
+  }
+
+  async function resolverEnFicha(id: number, estado: 'aprobada' | 'rechazada') {
+    await supabase.from('solicitudes_vacaciones').update({ estado }).eq('id', id)
+    if (editandoEmp) cargarFichaData(editandoEmp.id)
     cargarSolicitudes()
   }
 
@@ -591,8 +628,10 @@ export default function PaginaEquipo() {
       email_acceso: emp.email_acceso ?? '',
       notas: emp.notas ?? '',
     })
+    setTabFicha('general')
     setError('')
     setModalAbierto(true)
+    cargarFichaData(emp.id)
   }
 
   function cerrarModal() {
@@ -857,7 +896,38 @@ export default function PaginaEquipo() {
 
       {/* ══ MODAL EDITAR/CREAR EMPLEADO ════════════════════════ */}
       {modalAbierto && (
-        <Modal titulo={editandoEmp ? 'Editar empleado' : 'Nuevo empleado'} onCerrar={cerrarModal}>
+        <Modal titulo={editandoEmp ? editandoEmp.nombre : 'Nuevo empleado'} onCerrar={cerrarModal}>
+          {/* Tab bar — solo al editar */}
+          {editandoEmp && (
+            <div className="flex border-b border-gray-100 -mx-6 px-6 mb-5 -mt-1">
+              {(['general', 'vacaciones', 'sanciones', 'fichajes'] as const).map((t) => {
+                const labels: Record<TabFicha, string> = { general: 'General', vacaciones: 'Vacaciones', sanciones: 'Sanciones', fichajes: 'Fichajes' }
+                const counts: Record<TabFicha, number | null> = {
+                  general: null,
+                  vacaciones: fichaVacaciones.filter(v => v.estado === 'pendiente').length || null,
+                  sanciones: fichaSanciones.length || null,
+                  fichajes: null,
+                }
+                return (
+                  <button
+                    key={t}
+                    onClick={() => setTabFicha(t)}
+                    className={`relative px-4 py-2.5 text-xs font-medium border-b-2 transition-colors -mb-px flex items-center gap-1.5 ${
+                      tabFicha === t ? 'border-[#F5B731] text-gray-900' : 'border-transparent text-gray-400 hover:text-gray-600'
+                    }`}
+                  >
+                    {labels[t]}
+                    {counts[t] !== null && (
+                      <span className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold leading-none ${t === 'vacaciones' ? 'bg-orange-500 text-white' : 'bg-gray-200 text-gray-600'}`}>{counts[t]}</span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
+          {/* ── General ── */}
+          {(!editandoEmp || tabFicha === 'general') && (
           <div className="space-y-4">
             <Campo label="Nombre completo *">
               <input
@@ -961,6 +1031,102 @@ export default function PaginaEquipo() {
               </button>
             </div>
           </div>
+          )}
+
+          {/* ── Vacaciones ── */}
+          {editandoEmp && tabFicha === 'vacaciones' && (
+            <div>
+              {fichaLoading ? (
+                <div className="flex items-center justify-center py-8"><RefreshCw size={18} className="animate-spin text-[#F5B731]" /></div>
+              ) : fichaVacaciones.length === 0 ? (
+                <div className="py-8 text-center text-sm text-gray-400">Sin solicitudes de vacaciones</div>
+              ) : (
+                <div className="space-y-2">
+                  {fichaVacaciones.map((v) => (
+                    <div key={v.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800">
+                          {new Date(v.fecha_inicio + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                          {' → '}
+                          {new Date(v.fecha_fin + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </p>
+                        <p className="text-xs text-gray-500">{v.dias} días{v.notas ? ` · ${v.notas}` : ''}</p>
+                      </div>
+                      {v.estado === 'pendiente' ? (
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <button onClick={() => resolverEnFicha(v.id, 'aprobada')} className="px-2.5 py-1 bg-emerald-500 text-white text-xs font-semibold rounded-lg hover:bg-emerald-600 transition-colors">Aprobar</button>
+                          <button onClick={() => resolverEnFicha(v.id, 'rechazada')} className="px-2.5 py-1 bg-rose-500 text-white text-xs font-semibold rounded-lg hover:bg-rose-600 transition-colors">Rechazar</button>
+                        </div>
+                      ) : (
+                        <span className={`flex-shrink-0 text-xs font-medium px-2.5 py-1 rounded-full ${v.estado === 'aprobada' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                          {v.estado === 'aprobada' ? 'Aprobada' : 'Rechazada'}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Sanciones ── */}
+          {editandoEmp && tabFicha === 'sanciones' && (
+            <div>
+              {fichaLoading ? (
+                <div className="flex items-center justify-center py-8"><RefreshCw size={18} className="animate-spin text-[#F5B731]" /></div>
+              ) : fichaSanciones.length === 0 ? (
+                <div className="py-8 text-center text-sm text-gray-400">Sin sanciones registradas</div>
+              ) : (
+                <div className="space-y-2">
+                  {fichaSanciones.map((s) => (
+                    <div key={s.id} className="p-3 bg-gray-50 rounded-xl">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-semibold text-gray-800">{TIPOS_SANCION[s.tipo] ?? s.tipo}</span>
+                        <span className="text-xs text-gray-400">· {new Date(s.fecha + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                      </div>
+                      {s.descripcion && <p className="text-xs text-gray-600 leading-relaxed">{s.descripcion}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Fichajes ── */}
+          {editandoEmp && tabFicha === 'fichajes' && (
+            <div>
+              {fichaLoading ? (
+                <div className="flex items-center justify-center py-8"><RefreshCw size={18} className="animate-spin text-[#F5B731]" /></div>
+              ) : fichaFichajes.length === 0 ? (
+                <div className="py-8 text-center text-sm text-gray-400">Sin fichajes en los últimos 60 días</div>
+              ) : (
+                <div className="overflow-hidden rounded-xl border border-gray-200">
+                  <table className="w-full text-xs">
+                    <thead className="bg-gray-50 border-b border-gray-100">
+                      <tr>
+                        <th className="text-left px-3 py-2 font-medium text-gray-500">Fecha</th>
+                        <th className="text-center px-3 py-2 font-medium text-gray-500">Entrada</th>
+                        <th className="text-center px-3 py-2 font-medium text-gray-500">Salida</th>
+                        <th className="text-center px-3 py-2 font-medium text-gray-500">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {fichaFichajes.map((f) => (
+                        <tr key={f.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-3 py-2 text-gray-700">{new Date(f.fecha + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })}</td>
+                          <td className="px-3 py-2 text-center font-mono">{f.hora_entrada?.slice(0, 5) ?? '—'}</td>
+                          <td className="px-3 py-2 text-center font-mono">
+                            {f.hora_salida ? f.hora_salida.slice(0, 5) : <span className="text-emerald-600 font-semibold">•</span>}
+                          </td>
+                          <td className="px-3 py-2 text-center font-semibold text-gray-800">{f.horas_total != null ? `${f.horas_total}h` : '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
         </Modal>
       )}
 

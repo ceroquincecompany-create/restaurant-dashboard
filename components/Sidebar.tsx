@@ -7,10 +7,10 @@ import {
   LayoutDashboard, Store, BarChart3,
   TrendingUp, ChevronDown, FileText, PlusSquare, Target, Heart,
   Package, BookOpen, Layers, Truck, LogOut,
-  Users2, Users, CalendarDays, ClipboardList, UserCircle, Wallet,
-  ShieldAlert, Trophy, Wrench, Trash2, Thermometer, Sparkles, ClipboardCheck, ShoppingCart,
+  Users2, Users, CalendarDays, Wallet,
+  Wrench, Trash2, Thermometer, Sparkles, ClipboardCheck, ShoppingCart,
   ShoppingBag, Archive, ReceiptText, Link2, Briefcase,
-  MessagesSquare, Megaphone, NotebookPen, Star, GraduationCap, FileSignature, Umbrella, UserCheck,
+  MessagesSquare, Megaphone, NotebookPen, Star, GraduationCap, FileSignature,
 } from 'lucide-react'
 import { supabaseAuth } from '@/lib/supabase-browser'
 import { supabase } from '@/lib/supabase'
@@ -60,17 +60,11 @@ const comunidadItems = [
 ]
 
 const rrhhItems = [
-  { href: '/rrhh/equipo', icono: Users, label: 'Gestión Equipo' },
-  { href: '/rrhh/turnos', icono: CalendarDays, label: 'Turnos' },
-  { href: '/rrhh/fichajes', icono: ClipboardList, label: 'Control Fichajes' },
-  { href: '/rrhh/mi-ficha', icono: UserCircle, label: 'Mi Ficha' },
-  { href: '/rrhh/costes', icono: Wallet, label: 'Costes Personal' },
-  { href: '/rrhh/sanciones', icono: ShieldAlert, label: 'Sanciones' },
-  { href: '/rrhh/incentivos', icono: Trophy, label: 'Incentivos' },
-  { href: '/rrhh/bolsa-trabajo',  icono: Briefcase,      label: 'Bolsa de Trabajo' },
-  { href: '/rrhh/presencia',     icono: UserCheck,      label: 'Presencia' },
-  { href: '/rrhh/vacaciones',    icono: Umbrella,       label: 'Vacaciones' },
-  { href: '/rrhh/firmas',        icono: FileSignature,  label: 'Firmas digitales' },
+  { href: '/rrhh/equipo',        icono: Users,         label: 'Equipo' },
+  { href: '/rrhh/planificacion', icono: CalendarDays,  label: 'Planificación' },
+  { href: '/rrhh/documentos',    icono: FileSignature, label: 'Documentos' },
+  { href: '/rrhh/costes',        icono: Wallet,        label: 'Costes' },
+  { href: '/rrhh/bolsa-trabajo', icono: Briefcase,     label: 'Bolsa de Trabajo' },
 ]
 
 function SeccionColapsable({
