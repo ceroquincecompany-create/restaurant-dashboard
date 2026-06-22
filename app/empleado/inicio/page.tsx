@@ -1,14 +1,44 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import type { Fichaje, Turno } from '@/lib/supabase'
 import { useEmpleadoActual } from '@/lib/useEmpleado'
 import {
   RefreshCw, MapPin, CalendarDays, Umbrella, AlertCircle,
-  Bell, Thermometer, Sparkles, ChevronRight, Package, LogIn, LogOut,
+  Bell, Thermometer, Sparkles, ChevronRight, Package, LogIn, LogOut, Clock, XCircle,
 } from 'lucide-react'
+
+function calcAvisoTurno(turno: Turno | null, fichajes: Fichaje[]): 'pronto' | 'sin_fichar' | 'salida_pronto' | null {
+  if (!turno) return null
+  const ahora = new Date()
+  const today = ahora.toISOString().split('T')[0]
+  if (turno.fecha !== today) return null
+  if (!turno.hora_inicio && !turno.hora_fin) return null
+
+  const ahoraMin = ahora.getHours() * 60 + ahora.getMinutes()
+  const parseMin = (h: string) => { const [hh, mm] = h.split(':').map(Number); return hh * 60 + mm }
+  const inicioMin = turno.hora_inicio ? parseMin(turno.hora_inicio) : null
+  const finMin    = turno.hora_fin    ? parseMin(turno.hora_fin)    : null
+
+  const fichajeAbierto = fichajes.find(f => f.hora_salida === null && f.hora_entrada !== null) ?? null
+  const hayEntrada = !!fichajeAbierto
+
+  // Turno empieza en <= 30 min y aún no se ha fichado
+  if (!hayEntrada && inicioMin !== null && inicioMin > ahoraMin && inicioMin - ahoraMin <= 30)
+    return 'pronto'
+
+  // Turno empezó hace >= 15 min y no hay fichaje de entrada
+  if (!hayEntrada && inicioMin !== null && ahoraMin >= inicioMin && ahoraMin - inicioMin >= 15)
+    return 'sin_fichar'
+
+  // Turno termina en <= 15 min y hay entrada abierta sin salida
+  if (hayEntrada && finMin !== null && finMin >= ahoraMin && finMin - ahoraMin <= 15)
+    return 'salida_pronto'
+
+  return null
+}
 
 // Coordenadas SOFI Pinomonotano — Calle Estibadores 24-25, 41015 Sevilla
 const LOCAL_LAT = 37.42296249221703
@@ -73,6 +103,8 @@ export default function PaginaInicio() {
   const [limpiezasPendientes, setLimpiezasPendientes] = useState(0)
   // Badge inventario mensual
   const [inventarioPendiente, setInventarioPendiente] = useState(false)
+  // Tick cada 60s para recalcular aviso turno sin refetch
+  const [tick, setTick] = useState(0)
 
   const today = new Date().toISOString().split('T')[0]
 
@@ -159,6 +191,11 @@ export default function PaginaInicio() {
     if (empleado?.sin_restriccion_geo) { setGeoStatus('ok'); setDistancia(null) }
   }, [empleado?.sin_restriccion_geo])
 
+  useEffect(() => {
+    const interval = setInterval(() => setTick(t => t + 1), 60000)
+    return () => clearInterval(interval)
+  }, [])
+
   async function fichar() {
     if (!empleado || geoStatus !== 'ok') return
     setFichando(true)
@@ -194,6 +231,9 @@ export default function PaginaInicio() {
   const turnoAbierto = ultimoFichaje !== null && ultimoFichaje.hora_salida === null
   const puedefichar = geoStatus === 'ok'
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const avisoTurno = useMemo(() => calcAvisoTurno(proximoTurno, fichajesHoy ?? []), [proximoTurno, fichajesHoy, tick])
+
   return (
     <div className="px-4 py-5 md:px-6 md:py-6 max-w-2xl">
 
@@ -205,7 +245,36 @@ export default function PaginaInicio() {
         </p>
       </div>
 
-      {/* ── Banners de alertas ── */}
+      {/* ── Avisos de turno ── */}
+      {avisoTurno === 'sin_fichar' && (
+        <div className="flex items-center gap-3 mb-4 bg-rose-50 border border-rose-300 rounded-xl px-4 py-3">
+          <XCircle size={20} className="text-rose-500 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-bold text-rose-800">Tienes un turno activo sin fichar</p>
+            <p className="text-xs text-rose-600 mt-0.5">Recuerda registrar tu entrada lo antes posible</p>
+          </div>
+        </div>
+      )}
+      {avisoTurno === 'pronto' && (
+        <div className="flex items-center gap-3 mb-4 bg-[#F5B731]/10 border border-[#F5B731]/50 rounded-xl px-4 py-3">
+          <Clock size={20} className="text-[#F5B731] flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-bold text-[#1A1A1A]">Tu turno empieza pronto</p>
+            <p className="text-xs text-gray-600 mt-0.5">Recuerda fichar tu entrada cuando llegues al local</p>
+          </div>
+        </div>
+      )}
+      {avisoTurno === 'salida_pronto' && (
+        <div className="flex items-center gap-3 mb-4 bg-orange-50 border border-orange-300 rounded-xl px-4 py-3">
+          <LogOut size={20} className="text-orange-500 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-bold text-orange-800">Recuerda fichar la salida</p>
+            <p className="text-xs text-orange-600 mt-0.5">Tu turno termina en menos de 15 minutos</p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Banners de alertas operacionales ── */}
       {(inventarioPendiente || avisosActivos > 0 || tempMañanaPendiente || tempNochePendiente || limpiezasPendientes > 0) && (
         <div className="space-y-2 mb-4">
           {inventarioPendiente && (

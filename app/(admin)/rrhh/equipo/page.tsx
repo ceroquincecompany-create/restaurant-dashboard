@@ -515,7 +515,9 @@ export default function PaginaEquipo() {
   const [form, setForm]                   = useState<FormEmp>(FORM_VACIO)
   const [guardando, setGuardando]         = useState(false)
   const [error, setError]                 = useState('')
-  const [confirmEliminar, setConfirmEliminar] = useState<number | null>(null)
+  const [modalEliminar, setModalEliminar] = useState<Empleado | null>(null)
+  const [errorEliminar, setErrorEliminar] = useState('')
+  const [eliminando, setEliminando]       = useState(false)
   const [solicitudes, setSolicitudes]     = useState<SolicitudConEmpleado[]>([])
   const [procesando, setProcesando]       = useState<number | null>(null)
   const [modalDarAcceso, setModalDarAcceso] = useState<Empleado | null>(null)
@@ -630,9 +632,18 @@ export default function PaginaEquipo() {
     cerrarModal()
   }
 
-  async function eliminar(id: number) {
-    await supabase.from('empleados').update({ activo: false }).eq('id', id)
-    setConfirmEliminar(null)
+  async function eliminar() {
+    if (!modalEliminar) return
+    setEliminando(true)
+    setErrorEliminar('')
+    const { error: err } = await supabase.from('empleados').delete().eq('id', modalEliminar.id)
+    if (err) {
+      setErrorEliminar('No se pudo eliminar: ' + err.message)
+      setEliminando(false)
+      return
+    }
+    setEliminando(false)
+    setModalEliminar(null)
     cargar()
   }
 
@@ -829,20 +840,13 @@ export default function PaginaEquipo() {
                     >
                       <Pencil size={13} />
                     </button>
-                    {confirmEliminar === emp.id ? (
-                      <span className="flex items-center gap-1">
-                        <button onClick={() => eliminar(emp.id)} className="px-2 py-0.5 bg-rose-500 text-white rounded text-xs font-medium hover:bg-rose-600">Sí</button>
-                        <button onClick={() => setConfirmEliminar(null)} className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs font-medium hover:bg-gray-200">No</button>
-                      </span>
-                    ) : (
-                      <button
-                        onClick={() => setConfirmEliminar(emp.id)}
-                        className="p-1.5 text-gray-400 hover:text-rose-500 transition-colors rounded"
-                        title="Dar de baja"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    )}
+                    <button
+                      onClick={() => { setModalEliminar(emp); setErrorEliminar('') }}
+                      className="p-1.5 text-gray-400 hover:text-rose-500 transition-colors rounded"
+                      title="Eliminar empleado"
+                    >
+                      <Trash2 size={13} />
+                    </button>
                   </div>
                 </div>
               )
@@ -958,6 +962,53 @@ export default function PaginaEquipo() {
             </div>
           </div>
         </Modal>
+      )}
+
+      {/* ══ MODAL CONFIRMAR ELIMINAR ═══════════════════════════ */}
+      {modalEliminar && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <p className="text-sm font-semibold text-gray-800">Eliminar empleado</p>
+              <button onClick={() => setModalEliminar(null)} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
+            </div>
+            <div className="px-5 py-5">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center flex-shrink-0">
+                  <Trash2 size={18} className="text-rose-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-gray-900">¿Eliminar a {modalEliminar.nombre}?</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Esta acción no se puede deshacer.</p>
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 mb-4 leading-relaxed">
+                Se eliminarán todos los datos asociados: turnos, fichajes, solicitudes de vacaciones y registros de firma. Esta operación es permanente.
+              </p>
+              {errorEliminar && (
+                <p className="text-xs text-rose-600 mb-3 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+                  {errorEliminar}
+                </p>
+              )}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setModalEliminar(null)}
+                  disabled={eliminando}
+                  className="flex-1 py-2.5 text-sm font-medium border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={eliminar}
+                  disabled={eliminando}
+                  className="flex-1 py-2.5 text-sm font-bold bg-rose-600 text-white rounded-xl hover:bg-rose-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+                >
+                  {eliminando ? <><RefreshCw size={13} className="animate-spin" /> Eliminando...</> : <><Trash2 size={13} /> Eliminar</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ══ MODAL DAR ACCESO RÁPIDO ════════════════════════════ */}
