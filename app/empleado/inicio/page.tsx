@@ -93,6 +93,7 @@ export default function PaginaInicio() {
   const [fichajesHoy, setFichajesHoy] = useState<Fichaje[] | undefined>(undefined)
   const [proximoTurno, setProximoTurno] = useState<Turno | null>(null)
   const [diasRestantes, setDiasRestantes] = useState<number | null>(null)
+  const [diasTotales, setDiasTotal]       = useState(23)
   const [fichando, setFichando] = useState(false)
   const [geoStatus, setGeoStatus] = useState<'checking' | 'ok' | 'far' | 'error' | 'denied'>('checking')
   const [distancia, setDistancia] = useState<number | null>(null)
@@ -115,56 +116,81 @@ export default function PaginaInicio() {
     const ahora = new Date()
     const horaActualNum = ahora.getHours()
     const minutoActual = ahora.getMinutes()
-
     const horaStr = `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}:00`
 
-    const [{ data: fich }, { data: prox }, { data: sols }] = await Promise.all([
-      supabase.from('fichajes').select('*').eq('empleado_id', empleado.id).eq('fecha', today).order('hora_entrada', { ascending: true }),
-      supabase
-        .from('turnos').select('*')
-        .eq('empleado_id', empleado.id)
-        .or(`fecha.gt.${today},and(fecha.eq.${today},hora_fin.gte.${horaStr})`)
-        .order('fecha', { ascending: true })
-        .order('hora_inicio', { ascending: true })
-        .limit(1).maybeSingle(),
-      supabase.from('solicitudes_vacaciones').select('dias').eq('empleado_id', empleado.id).eq('estado', 'aprobada').gte('fecha_inicio', `${añoActual}-01-01`),
-    ])
-    setFichajesHoy(fich ?? [])
-    setProximoTurno(prox ?? null)
-    const usados = (sols ?? []).reduce((s, r) => s + r.dias, 0)
-    setDiasRestantes(23 - usados)
+    // ── Bloque principal: fichajes + turno + vacaciones ──────────────────
+    try {
+      const [{ data: fich }, { data: prox }, { data: sols }, { data: hist }] = await Promise.all([
+        supabase
+          .from('fichajes').select('*')
+          .eq('empleado_id', empleado.id).eq('fecha', today)
+          .order('hora_entrada', { ascending: true }),
+        supabase
+          .from('turnos').select('*')
+          .eq('empleado_id', empleado.id)
+          .or(`fecha.gt.${today},and(fecha.eq.${today},hora_fin.gte.${horaStr})`)
+          .order('fecha', { ascending: true })
+          .order('hora_inicio', { ascending: true })
+          .limit(1).maybeSingle(),
+        supabase
+          .from('solicitudes_vacaciones').select('dias')
+          .eq('empleado_id', empleado.id).eq('estado', 'aprobada')
+          .gte('fecha_inicio', `${añoActual}-01-01`),
+        supabase
+          .from('vacaciones_historial').select('dias_totales,dias_usados_historico')
+          .eq('empleado_id', empleado.id).eq('año', añoActual)
+          .maybeSingle(),
+      ])
+      setFichajesHoy(fich ?? [])
+      setProximoTurno(prox ?? null)
+      const totales   = hist?.dias_totales          ?? 23
+      const historico = hist?.dias_usados_historico ?? 0
+      const usadosApp = (sols ?? []).reduce((s, r) => s + r.dias, 0)
+      setDiasTotal(totales)
+      setDiasRestantes(totales - historico - usadosApp)
+    } catch {
+      setFichajesHoy(prev => prev ?? [])
+      setProximoTurno(null)
+      setDiasRestantes(0)
+    }
 
-    // Badges operacionales
-    const [{ count: avisos }, { count: tempMañana }, { count: tempNoche }, { data: limpiezasHoy }] = await Promise.all([
-      supabase.from('avisos_equipo').select('id', { count: 'exact', head: true }).eq('activo', true).eq('local_id', localId),
-      supabase.from('temperaturas').select('id', { count: 'exact', head: true }).eq('turno', 'mañana').gte('fecha', `${today}T00:00:00`).lte('fecha', `${today}T23:59:59`).eq('local_id', localId),
-      supabase.from('temperaturas').select('id', { count: 'exact', head: true }).eq('turno', 'noche').gte('fecha', `${today}T00:00:00`).lte('fecha', `${today}T23:59:59`).eq('local_id', localId),
-      supabase.from('limpiezas').select('tarea').eq('fecha', today).eq('local_id', localId),
-    ])
-    setAvisosActivos(avisos ?? 0)
-    setTempMañanaPendiente(horaActualNum >= 11 && (tempMañana ?? 0) === 0)
-    setTempNochePendiente((horaActualNum > 22 || (horaActualNum === 22 && minutoActual >= 30)) && (tempNoche ?? 0) === 0)
-    const tareasCompletadas = new Set((limpiezasHoy ?? []).map((r: any) => r.tarea))
-    const DIARIAS = ['Utensilios cocina', 'Superficies cocina', 'Superficies horizontales', 'Superficies verticales', 'Baños']
-    setLimpiezasPendientes(DIARIAS.filter(t => !tareasCompletadas.has(t)).length)
+    // ── Badges operacionales ─────────────────────────────────────────────
+    try {
+      const [{ count: avisos }, { count: tempMañana }, { count: tempNoche }, { data: limpiezasHoy }] = await Promise.all([
+        supabase.from('avisos_equipo').select('id', { count: 'exact', head: true }).eq('activo', true).eq('local_id', localId),
+        supabase.from('temperaturas').select('id', { count: 'exact', head: true }).eq('turno', 'mañana').gte('fecha', `${today}T00:00:00`).lte('fecha', `${today}T23:59:59`).eq('local_id', localId),
+        supabase.from('temperaturas').select('id', { count: 'exact', head: true }).eq('turno', 'noche').gte('fecha', `${today}T00:00:00`).lte('fecha', `${today}T23:59:59`).eq('local_id', localId),
+        supabase.from('limpiezas').select('tarea').eq('fecha', today).eq('local_id', localId),
+      ])
+      setAvisosActivos(avisos ?? 0)
+      setTempMañanaPendiente(horaActualNum >= 11 && (tempMañana ?? 0) === 0)
+      setTempNochePendiente((horaActualNum > 22 || (horaActualNum === 22 && minutoActual >= 30)) && (tempNoche ?? 0) === 0)
+      const tareasCompletadas = new Set((limpiezasHoy ?? []).map((r: any) => r.tarea))
+      const DIARIAS = ['Utensilios cocina', 'Superficies cocina', 'Superficies horizontales', 'Superficies verticales', 'Baños']
+      setLimpiezasPendientes(DIARIAS.filter(t => !tareasCompletadas.has(t)).length)
+    } catch {
+      // badges permanecen en 0 (estado inicial)
+    }
 
-    // Badge inventario: últimos 3 días del mes, no confirmado aún
-    const finMes = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0)
-    const ultimoDia = finMes.getDate()
-    const diaHoy = ahora.getDate()
-    if (diaHoy >= ultimoDia - 2) {
-      const y = ahora.getFullYear()
-      const m = ahora.getMonth() + 1
-      const inicioMes = `${y}-${String(m).padStart(2, '0')}-01`
-      const finMesISO = finMes.toISOString().split('T')[0]
-      const { count } = await supabase.from('inventario_conteos')
-        .select('id', { count: 'exact', head: true })
-        .eq('empleado_id', empleado.id)
-        .eq('cerrado', true)
-        .gte('fecha', inicioMes)
-        .lte('fecha', finMesISO)
-      setInventarioPendiente((count ?? 0) === 0)
-    } else {
+    // ── Badge inventario mensual ─────────────────────────────────────────
+    try {
+      const finMes    = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0)
+      const ultimoDia = finMes.getDate()
+      const diaHoy    = ahora.getDate()
+      if (diaHoy >= ultimoDia - 2) {
+        const y = ahora.getFullYear()
+        const m = ahora.getMonth() + 1
+        const inicioMes = `${y}-${String(m).padStart(2, '0')}-01`
+        const finMesISO = finMes.toISOString().split('T')[0]
+        const { count } = await supabase.from('inventario_conteos')
+          .select('id', { count: 'exact', head: true })
+          .eq('empleado_id', empleado.id).eq('cerrado', true)
+          .gte('fecha', inicioMes).lte('fecha', finMesISO)
+        setInventarioPendiente((count ?? 0) === 0)
+      } else {
+        setInventarioPendiente(false)
+      }
+    } catch {
       setInventarioPendiente(false)
     }
   }, [empleado, today])
@@ -428,10 +454,10 @@ export default function PaginaInicio() {
             <div>
               <p className="text-3xl font-bold text-gray-900">{diasRestantes}</p>
               <p className="text-sm text-gray-400 mt-1">días disponibles</p>
-              <p className="text-sm text-gray-300 mt-0.5">{23 - diasRestantes} de 23 usados</p>
+              <p className="text-sm text-gray-300 mt-0.5">{diasTotales - diasRestantes} de {diasTotales} usados</p>
             </div>
           ) : (
-            <p className="text-base text-gray-400">Cargando...</p>
+            <p className="text-base text-gray-400">Sin datos</p>
           )}
         </Link>
       </div>
