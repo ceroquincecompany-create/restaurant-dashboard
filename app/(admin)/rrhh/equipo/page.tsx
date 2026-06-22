@@ -6,7 +6,7 @@ import type { Empleado, Local } from '@/lib/supabase'
 import {
   Plus, RefreshCw, Pencil, Trash2, X, Search, Users, Umbrella,
   Check, Ban, KeyRound, Mail, ShieldCheck, ShieldOff, Copy, ExternalLink,
-  Eye, EyeOff, AlertTriangle,
+  Eye, EyeOff, AlertTriangle, ChevronLeft, ChevronRight, CalendarDays,
 } from 'lucide-react'
 
 // ─────────────────────────────────────────────
@@ -30,6 +30,7 @@ type TabFicha = 'general' | 'vacaciones' | 'sanciones' | 'fichajes'
 type SancionFicha = { id: number; tipo: string; fecha: string; descripcion: string | null }
 type VacaFicha    = { id: number; fecha_inicio: string; fecha_fin: string; dias: number; estado: 'pendiente' | 'aprobada' | 'rechazada'; notas: string | null }
 type FichajeFicha = { id: number; fecha: string; hora_entrada: string | null; hora_salida: string | null; horas_total: number | null }
+type VacaHistorialDB = { id: number; empleado_id: number; año: number; dias_totales: number; dias_usados_historico: number; notas: string | null }
 
 const TIPOS_SANCION: Record<string, string> = {
   aviso_verbal: 'Aviso verbal', amonestacion_escrita: 'Amonestación escrita',
@@ -536,7 +537,12 @@ export default function PaginaEquipo() {
   const [fichaLoading, setFichaLoading]   = useState(false)
   const [fichaVacaciones, setFichaVacaciones] = useState<VacaFicha[]>([])
   const [fichaSanciones, setFichaSanciones]   = useState<SancionFicha[]>([])
-  const [fichaFichajes, setFichaFichajes]     = useState<FichajeFicha[]>([])
+  const [fichaFichajes, setFichaFichajes]           = useState<FichajeFicha[]>([])
+  const [fichaAño, setFichaAño]                     = useState(new Date().getFullYear())
+  const [fichaHistorial, setFichaHistorial]         = useState<VacaHistorialDB | null>(null)
+  const [fichaHistorialForm, setFichaHistorialForm] = useState({ dias_totales: 23, dias_usados_historico: 0, notas: '' })
+  const [fichaHistorialGuardando, setFichaHistorialGuardando] = useState(false)
+  const [fichaHistorialLoading, setFichaHistorialLoading]     = useState(false)
 
   const cargarSolicitudes = useCallback(async () => {
     const { data } = await supabase
@@ -573,6 +579,51 @@ export default function PaginaEquipo() {
     setFichaLoading(false)
   }
 
+  function fechasEnRangoEquipo(inicio: string, fin: string): string[] {
+    const dates: string[] = []
+    const d = new Date(inicio + 'T12:00:00')
+    const end = new Date(fin + 'T12:00:00')
+    while (d <= end) { dates.push(d.toISOString().split('T')[0]); d.setDate(d.getDate() + 1) }
+    return dates
+  }
+
+  async function cargarHistorialAño(empId: number, año: number) {
+    setFichaHistorialLoading(true)
+    const { data } = await supabase
+      .from('vacaciones_historial')
+      .select('*')
+      .eq('empleado_id', empId)
+      .eq('año', año)
+      .maybeSingle()
+    if (data) {
+      setFichaHistorial(data as VacaHistorialDB)
+      setFichaHistorialForm({ dias_totales: data.dias_totales, dias_usados_historico: data.dias_usados_historico, notas: data.notas ?? '' })
+    } else {
+      setFichaHistorial(null)
+      setFichaHistorialForm({ dias_totales: 23, dias_usados_historico: 0, notas: '' })
+    }
+    setFichaHistorialLoading(false)
+  }
+
+  async function guardarHistorial() {
+    if (!editandoEmp) return
+    setFichaHistorialGuardando(true)
+    const payload = {
+      empleado_id: editandoEmp.id,
+      año: fichaAño,
+      dias_totales: fichaHistorialForm.dias_totales,
+      dias_usados_historico: fichaHistorialForm.dias_usados_historico,
+      notas: fichaHistorialForm.notas || null,
+    }
+    if (fichaHistorial) {
+      await supabase.from('vacaciones_historial').update(payload).eq('id', fichaHistorial.id)
+    } else {
+      await supabase.from('vacaciones_historial').insert(payload)
+    }
+    await cargarHistorialAño(editandoEmp.id, fichaAño)
+    setFichaHistorialGuardando(false)
+  }
+
   async function resolverSolicitud(id: number, estado: 'aprobada' | 'rechazada') {
     setProcesando(id)
     await supabase.from('solicitudes_vacaciones').update({ estado }).eq('id', id)
@@ -582,6 +633,29 @@ export default function PaginaEquipo() {
 
   async function resolverEnFicha(id: number, estado: 'aprobada' | 'rechazada') {
     await supabase.from('solicitudes_vacaciones').update({ estado }).eq('id', id)
+    if (estado === 'aprobada' && editandoEmp) {
+      const sol = fichaVacaciones.find(v => v.id === id)
+      if (sol) {
+        const fechas = fechasEnRangoEquipo(sol.fecha_inicio, sol.fecha_fin)
+        const { data: existing } = await supabase
+          .from('turnos')
+          .select('fecha')
+          .eq('empleado_id', editandoEmp.id)
+          .in('fecha', fechas)
+          .eq('tipo_turno', 'Vacaciones')
+        const existingSet = new Set((existing ?? []).map((t: any) => t.fecha as string))
+        const nuevasFechas = fechas.filter(f => !existingSet.has(f))
+        if (nuevasFechas.length > 0) {
+          await supabase.from('turnos').insert(
+            nuevasFechas.map(fecha => ({
+              empleado_id: editandoEmp.id,
+              fecha,
+              tipo_turno: 'Vacaciones',
+            }))
+          )
+        }
+      }
+    }
     if (editandoEmp) cargarFichaData(editandoEmp.id)
     cargarSolicitudes()
   }
@@ -596,6 +670,12 @@ export default function PaginaEquipo() {
       return matchQ && matchE
     })
   }, [empleados, busqueda, filtroEstado])
+
+  const fichaAñoStr = String(fichaAño)
+  const diasUsadosApp = fichaVacaciones
+    .filter(v => v.estado === 'aprobada' && v.fecha_inicio.startsWith(fichaAñoStr))
+    .reduce((sum, v) => sum + v.dias, 0)
+  const diasDisponibles = Math.max(0, fichaHistorialForm.dias_totales - fichaHistorialForm.dias_usados_historico - diasUsadosApp)
 
   const costeHora = (f: FormEmp) => {
     const sal = parseFloat(f.salario_bruto)
@@ -632,6 +712,9 @@ export default function PaginaEquipo() {
     setError('')
     setModalAbierto(true)
     cargarFichaData(emp.id)
+    const añoNow = new Date().getFullYear()
+    setFichaAño(añoNow)
+    cargarHistorialAño(emp.id, añoNow)
   }
 
   function cerrarModal() {
@@ -1035,37 +1118,138 @@ export default function PaginaEquipo() {
 
           {/* ── Vacaciones ── */}
           {editandoEmp && tabFicha === 'vacaciones' && (
-            <div>
-              {fichaLoading ? (
-                <div className="flex items-center justify-center py-8"><RefreshCw size={18} className="animate-spin text-[#F5B731]" /></div>
-              ) : fichaVacaciones.length === 0 ? (
-                <div className="py-8 text-center text-sm text-gray-400">Sin solicitudes de vacaciones</div>
-              ) : (
-                <div className="space-y-2">
-                  {fichaVacaciones.map((v) => (
-                    <div key={v.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-800">
-                          {new Date(v.fecha_inicio + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
-                          {' → '}
-                          {new Date(v.fecha_fin + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}
-                        </p>
-                        <p className="text-xs text-gray-500">{v.dias} días{v.notas ? ` · ${v.notas}` : ''}</p>
-                      </div>
-                      {v.estado === 'pendiente' ? (
-                        <div className="flex items-center gap-1.5 flex-shrink-0">
-                          <button onClick={() => resolverEnFicha(v.id, 'aprobada')} className="px-2.5 py-1 bg-emerald-500 text-white text-xs font-semibold rounded-lg hover:bg-emerald-600 transition-colors">Aprobar</button>
-                          <button onClick={() => resolverEnFicha(v.id, 'rechazada')} className="px-2.5 py-1 bg-rose-500 text-white text-xs font-semibold rounded-lg hover:bg-rose-600 transition-colors">Rechazar</button>
-                        </div>
-                      ) : (
-                        <span className={`flex-shrink-0 text-xs font-medium px-2.5 py-1 rounded-full ${v.estado === 'aprobada' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                          {v.estado === 'aprobada' ? 'Aprobada' : 'Rechazada'}
-                        </span>
-                      )}
-                    </div>
-                  ))}
+            <div className="space-y-5">
+
+              {/* Sección 1: Días disponibles */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Días disponibles</p>
+                  <div className="flex items-center gap-0.5">
+                    <button
+                      onClick={() => { const y = fichaAño - 1; setFichaAño(y); cargarHistorialAño(editandoEmp.id, y) }}
+                      className="p-1 rounded hover:bg-gray-100 transition-colors"
+                    ><ChevronLeft size={14} /></button>
+                    <span className="text-sm font-semibold text-gray-800 px-1.5">{fichaAño}</span>
+                    <button
+                      onClick={() => { const y = fichaAño + 1; setFichaAño(y); cargarHistorialAño(editandoEmp.id, y) }}
+                      className="p-1 rounded hover:bg-gray-100 transition-colors"
+                    ><ChevronRight size={14} /></button>
+                  </div>
                 </div>
-              )}
+                {fichaHistorialLoading ? (
+                  <div className="flex justify-center py-4"><RefreshCw size={16} className="animate-spin text-[#F5B731]" /></div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-4 gap-2 mb-4">
+                      <div className="bg-gray-50 rounded-xl p-3 text-center">
+                        <p className="text-xl font-bold text-gray-900">{fichaHistorialForm.dias_totales}</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">Totales</p>
+                      </div>
+                      <div className="bg-amber-50 rounded-xl p-3 text-center">
+                        <p className="text-xl font-bold text-amber-600">{fichaHistorialForm.dias_usados_historico}</p>
+                        <p className="text-[10px] text-amber-500 mt-0.5">Histórico</p>
+                      </div>
+                      <div className="bg-blue-50 rounded-xl p-3 text-center">
+                        <p className="text-xl font-bold text-blue-600">{diasUsadosApp}</p>
+                        <p className="text-[10px] text-blue-400 mt-0.5">En app</p>
+                      </div>
+                      <div className={`rounded-xl p-3 text-center ${diasDisponibles > 0 ? 'bg-emerald-50' : 'bg-rose-50'}`}>
+                        <p className={`text-xl font-bold ${diasDisponibles > 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{diasDisponibles}</p>
+                        <p className={`text-[10px] mt-0.5 ${diasDisponibles > 0 ? 'text-emerald-500' : 'text-rose-400'}`}>Disponibles</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Días totales del año</label>
+                        <input type="number" className={inputCls} value={fichaHistorialForm.dias_totales} min="0" max="365"
+                          onChange={e => setFichaHistorialForm(f => ({ ...f, dias_totales: Number(e.target.value) || 0 }))} />
+                        <p className="text-[10px] text-gray-400 mt-0.5">Por convenio o contrato parcial</p>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Usados antes de la app</label>
+                        <input type="number" className={inputCls} value={fichaHistorialForm.dias_usados_historico} min="0"
+                          onChange={e => setFichaHistorialForm(f => ({ ...f, dias_usados_historico: Number(e.target.value) || 0 }))} />
+                        <p className="text-[10px] text-gray-400 mt-0.5">Vacaciones previas sin registrar</p>
+                      </div>
+                    </div>
+                    <div className="mb-3">
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Notas</label>
+                      <input className={inputCls} value={fichaHistorialForm.notas} placeholder="Observaciones sobre el año vacacional..."
+                        onChange={e => setFichaHistorialForm(f => ({ ...f, notas: e.target.value }))} />
+                    </div>
+                    <button onClick={guardarHistorial} disabled={fichaHistorialGuardando}
+                      className="w-full py-2 text-sm font-semibold bg-[#F5B731] text-[#1A1A1A] rounded-lg hover:bg-[#e0a820] transition-colors disabled:opacity-50">
+                      {fichaHistorialGuardando ? 'Guardando...' : 'Guardar año vacacional'}
+                    </button>
+                  </>
+                )}
+              </div>
+
+              <hr className="border-gray-100" />
+
+              {/* Sección 2: Historial de solicitudes */}
+              <div>
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Solicitudes {fichaAño}</p>
+                {fichaLoading ? (
+                  <div className="flex justify-center py-4"><RefreshCw size={16} className="animate-spin text-[#F5B731]" /></div>
+                ) : (() => {
+                  const solsAño = fichaVacaciones.filter(v => v.fecha_inicio.startsWith(fichaAñoStr))
+                  if (solsAño.length === 0) return <p className="text-sm text-gray-400 py-2">Sin solicitudes en {fichaAño}</p>
+                  return (
+                    <div className="space-y-2">
+                      {solsAño.map(v => (
+                        <div key={v.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-800">
+                              {new Date(v.fecha_inicio + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                              {' → '}
+                              {new Date(v.fecha_fin + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            </p>
+                            <p className="text-xs text-gray-500">{v.dias} días{v.notas ? ` · ${v.notas}` : ''}</p>
+                          </div>
+                          {v.estado === 'pendiente' ? (
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                              <button onClick={() => resolverEnFicha(v.id, 'aprobada')} className="px-2.5 py-1 bg-emerald-500 text-white text-xs font-semibold rounded-lg hover:bg-emerald-600 transition-colors">Aprobar</button>
+                              <button onClick={() => resolverEnFicha(v.id, 'rechazada')} className="px-2.5 py-1 bg-rose-500 text-white text-xs font-semibold rounded-lg hover:bg-rose-600 transition-colors">Rechazar</button>
+                            </div>
+                          ) : (
+                            <span className={`flex-shrink-0 text-xs font-medium px-2.5 py-1 rounded-full ${v.estado === 'aprobada' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                              {v.estado === 'aprobada' ? 'Aprobada' : 'Rechazada'}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })()}
+              </div>
+
+              {/* Sección 3: Vinculación con cuadrante */}
+              {(() => {
+                const aprobadas = fichaVacaciones.filter(v => v.estado === 'aprobada' && v.fecha_inicio.startsWith(fichaAñoStr))
+                if (aprobadas.length === 0) return null
+                return (
+                  <>
+                    <hr className="border-gray-100" />
+                    <div>
+                      <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Vinculación con cuadrante</p>
+                      <div className="space-y-2">
+                        {aprobadas.map(v => (
+                          <div key={v.id} className="flex items-center gap-2 p-3 bg-[#F5B731]/10 border border-[#F5B731]/30 rounded-xl text-xs text-gray-700 flex-wrap">
+                            <CalendarDays size={13} className="text-[#1A1A1A] flex-shrink-0" />
+                            <span>
+                              Turno &ldquo;Vacaciones&rdquo; del{' '}
+                              <strong>{new Date(v.fecha_inicio + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</strong>
+                              {' al '}
+                              <strong>{new Date(v.fecha_fin + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}</strong>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )
+              })()}
             </div>
           )}
 

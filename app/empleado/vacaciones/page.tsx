@@ -10,7 +10,6 @@ import {
   Clock, Check, CheckCheck, PenLine, AlertCircle,
 } from 'lucide-react'
 
-const DIAS_ASIGNADOS = 23
 
 function diasLaborables(inicio: string, fin: string): number {
   let count = 0
@@ -100,14 +99,24 @@ export default function PaginaVacaciones() {
   const [error, setError] = useState('')
   const [mesCal, setMesCal] = useState(() => new Date().getMonth() + 1)
   const [añoCal, setAñoCal] = useState(() => new Date().getFullYear())
+  const [historial, setHistorial] = useState<{ dias_totales: number; dias_usados_historico: number } | null>(null)
 
   const cargar = useCallback(async () => {
     if (!empleado) return
-    const { data: sols } = await supabase
-      .from('solicitudes_vacaciones')
-      .select('*')
-      .eq('empleado_id', empleado.id)
-      .order('fecha_inicio', { ascending: false })
+    const añoActualFetch = new Date().getFullYear()
+    const [{ data: sols }, { data: hist }] = await Promise.all([
+      supabase
+        .from('solicitudes_vacaciones')
+        .select('*')
+        .eq('empleado_id', empleado.id)
+        .order('fecha_inicio', { ascending: false }),
+      supabase
+        .from('vacaciones_historial')
+        .select('dias_totales, dias_usados_historico')
+        .eq('empleado_id', empleado.id)
+        .eq('año', añoActualFetch)
+        .maybeSingle(),
+    ])
 
     const lista = (sols ?? []) as SolicitudVacaciones[]
 
@@ -125,6 +134,7 @@ export default function PaginaVacaciones() {
 
     setSolicitudes(lista)
     setFirmadasSet(fSet)
+    setHistorial(hist ? { dias_totales: hist.dias_totales, dias_usados_historico: hist.dias_usados_historico } : null)
     setLoading(false)
   }, [empleado])
 
@@ -135,9 +145,12 @@ export default function PaginaVacaciones() {
   }, [empLoading, empleado, cargar])
 
   const añoActual = new Date().getFullYear()
+  const diasTotales = historial?.dias_totales ?? 23
+  const diasUsadosHistorico = historial?.dias_usados_historico ?? 0
   const aprobadas = solicitudes.filter(s => s.estado === 'aprobada' && s.fecha_inicio.startsWith(String(añoActual)))
-  const diasUsados = aprobadas.reduce((s, r) => s + r.dias, 0)
-  const diasRestantes = DIAS_ASIGNADOS - diasUsados
+  const diasUsadosApp = aprobadas.reduce((s, r) => s + r.dias, 0)
+  const diasUsados = diasUsadosHistorico + diasUsadosApp
+  const diasRestantes = diasTotales - diasUsados
 
   const diasVac = useMemo(() => {
     const set = new Set<string>()
@@ -156,7 +169,7 @@ export default function PaginaVacaciones() {
     if (!empleado) return
     if (!form.fecha_inicio || !form.fecha_fin) { setError('Selecciona las fechas'); return }
     if (diasSolicitud <= 0) { setError('Rango de fechas no válido'); return }
-    if (diasSolicitud > diasRestantes) { setError(`Solo te quedan ${diasRestantes} días disponibles`); return }
+    if (diasSolicitud > diasRestantes) { setError(`Solo tienes ${diasRestantes} días disponibles este año`); return }
     setGuardando(true)
     setError('')
     const { error: err } = await supabase.from('solicitudes_vacaciones').insert({
@@ -219,7 +232,7 @@ export default function PaginaVacaciones() {
       {/* KPIs */}
       <div className="grid grid-cols-3 gap-3 mb-5">
         <div className="bg-white rounded-xl border border-gray-200 p-4 text-center">
-          <p className="text-2xl font-bold text-gray-900">{DIAS_ASIGNADOS}</p>
+          <p className="text-2xl font-bold text-gray-900">{diasTotales}</p>
           <p className="text-xs text-gray-400 mt-0.5">Asignados</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-4 text-center">
