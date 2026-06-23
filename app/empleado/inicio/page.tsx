@@ -120,7 +120,12 @@ export default function PaginaInicio() {
 
     // ── Bloque principal: fichajes + turno + vacaciones ──────────────────
     try {
-      const [{ data: fich }, { data: prox }, { data: sols }, { data: hist }] = await Promise.all([
+      const [
+        { data: fich, error: fichErr },
+        { data: prox, error: proxErr },
+        { data: sols, error: solsErr },
+        { data: hist, error: histErr },
+      ] = await Promise.all([
         supabase
           .from('fichajes').select('*')
           .eq('empleado_id', empleado.id).eq('fecha', today)
@@ -141,6 +146,10 @@ export default function PaginaInicio() {
           .eq('empleado_id', empleado.id).eq('año', añoActual)
           .maybeSingle(),
       ])
+      if (fichErr) console.error('[inicio] fichajes error:', fichErr.message)
+      if (proxErr) console.error('[inicio] turnos error:', proxErr.message)
+      if (solsErr) console.error('[inicio] solicitudes_vacaciones error:', solsErr.message)
+      if (histErr) console.error('[inicio] vacaciones_historial error:', histErr.message)
       setFichajesHoy(fich ?? [])
       setProximoTurno(prox ?? null)
       const totales   = hist?.dias_totales          ?? 23
@@ -148,7 +157,8 @@ export default function PaginaInicio() {
       const usadosApp = (sols ?? []).reduce((s, r) => s + r.dias, 0)
       setDiasTotal(totales)
       setDiasRestantes(totales - historico - usadosApp)
-    } catch {
+    } catch (err) {
+      console.error('[inicio] Excepción en bloque principal:', err)
       setFichajesHoy(prev => prev ?? [])
       setProximoTurno(null)
       setDiasRestantes(0)
@@ -168,8 +178,8 @@ export default function PaginaInicio() {
       const tareasCompletadas = new Set((limpiezasHoy ?? []).map((r: any) => r.tarea))
       const DIARIAS = ['Utensilios cocina', 'Superficies cocina', 'Superficies horizontales', 'Superficies verticales', 'Baños']
       setLimpiezasPendientes(DIARIAS.filter(t => !tareasCompletadas.has(t)).length)
-    } catch {
-      // badges permanecen en 0 (estado inicial)
+    } catch (err) {
+      console.error('[inicio] Excepción en badges operacionales:', err)
     }
 
     // ── Badge inventario mensual ─────────────────────────────────────────
@@ -190,7 +200,8 @@ export default function PaginaInicio() {
       } else {
         setInventarioPendiente(false)
       }
-    } catch {
+    } catch (err) {
+      console.error('[inicio] Excepción en badge inventario:', err)
       setInventarioPendiente(false)
     }
   }, [empleado, today])
@@ -240,7 +251,34 @@ export default function PaginaInicio() {
     cargarDatos()
   }
 
-  if (empLoading || fichajesHoy === undefined) {
+  // Spinner mientras el hook resuelve
+  if (empLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <RefreshCw className="animate-spin text-[#F5B731]" size={24} />
+      </div>
+    )
+  }
+
+  // Hook resuelto pero sin perfil vinculado → mensaje amigable en lugar de spinner infinito
+  if (!empleado) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[80vh] px-6 text-center gap-4">
+        <div className="w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center">
+          <AlertCircle size={28} className="text-amber-500" />
+        </div>
+        <div>
+          <h2 className="text-lg font-bold text-gray-800">Perfil no encontrado</h2>
+          <p className="text-sm text-gray-500 mt-2 max-w-xs leading-relaxed">
+            No encontramos tu perfil de empleado. Contacta con tu administrador para que vincule tu cuenta de acceso al sistema.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // Spinner mientras se cargan los datos del empleado
+  if (fichajesHoy === undefined) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <RefreshCw className="animate-spin text-[#F5B731]" size={24} />
