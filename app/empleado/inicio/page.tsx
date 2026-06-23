@@ -233,6 +233,10 @@ export default function PaginaInicio() {
     return () => clearInterval(interval)
   }, [])
 
+  // DEBE estar antes de cualquier return condicional (reglas de hooks)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const avisoTurno = useMemo(() => calcAvisoTurno(proximoTurno, fichajesHoy ?? []), [proximoTurno, fichajesHoy, tick])
+
   async function fichar() {
     if (!empleado || geoStatus !== 'ok') return
     setFichando(true)
@@ -294,9 +298,6 @@ export default function PaginaInicio() {
   const ultimoFichaje = lista[lista.length - 1] ?? null
   const turnoAbierto = ultimoFichaje !== null && ultimoFichaje.hora_salida === null
   const puedefichar = geoStatus === 'ok'
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const avisoTurno = useMemo(() => calcAvisoTurno(proximoTurno, fichajesHoy ?? []), [proximoTurno, fichajesHoy, tick])
 
   return (
     <div className="px-4 py-5 md:px-6 md:py-6 max-w-2xl">
