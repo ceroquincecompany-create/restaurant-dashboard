@@ -666,11 +666,23 @@ function calcHorasFichaje(entrada: string, salida: string): { total: number; noc
   const [h2, m2] = salida.split(':').map(Number)
   const inicioMin = h1 * 60 + m1
   let finMin = h2 * 60 + m2
-  if (finMin <= inicioMin) finMin += 24 * 60
+  if (finMin <= inicioMin) finMin += 24 * 60  // ajuste cruce de medianoche
+
   const total = (finMin - inicioMin) / 60
-  const NOCHE_INI = 22 * 60, NOCHE_FIN = 30 * 60
-  const nocturnas = Math.max(0, Math.min(finMin, NOCHE_FIN) - Math.max(inicioMin, NOCHE_INI)) / 60
-  return { total: Math.round(total * 100) / 100, nocturnas: Math.round(nocturnas * 100) / 100 }
+
+  // Tramo nocturno continuo: 22:00 → 06:00 del día siguiente (1320 → 1800 en timeline extendido)
+  let nocMin = Math.max(0, Math.min(finMin, 1800) - Math.max(inicioMin, 1320))
+
+  // Tramo madrugada aislado: 00:00 → 06:00 para turnos que empiezan en madrugada
+  // sin cruzar medianoche (el cruce ya queda cubierto en el tramo anterior como 1440-1800)
+  if (inicioMin < 360 && finMin <= 1440) {
+    nocMin += Math.min(finMin, 360) - inicioMin
+  }
+
+  return {
+    total:     Math.round(total * 100) / 100,
+    nocturnas: Math.round(Math.max(0, nocMin) / 60 * 100) / 100,
+  }
 }
 
 function descargarCSV(rows: string[][], nombre: string) {

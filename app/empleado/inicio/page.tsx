@@ -68,18 +68,19 @@ function calcHorasTotal(entrada: string, salida: string): number {
   return Math.round((t / 60) * 100) / 100
 }
 
-// Genera "Hoy", "Mañana, miércoles" o "jueves" según la fecha del turno
 function etiquetaTurno(turno: Turno): string {
   const hoyISO = new Date().toISOString().split('T')[0]
   const man = new Date(); man.setDate(man.getDate() + 1)
   const manISO = man.toISOString().split('T')[0]
-  const diaSemana = new Date(turno.fecha + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'long' })
+  const fechaD = new Date(turno.fecha + 'T12:00:00')
+  const diaSemana = fechaD.toLocaleDateString('es-ES', { weekday: 'long' })
   const diaCapital = diaSemana.charAt(0).toUpperCase() + diaSemana.slice(1)
+  const fechaCorta = fechaD.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
 
-  let prefijo = ''
+  let prefijo: string
   if (turno.fecha === hoyISO) prefijo = 'Hoy'
   else if (turno.fecha === manISO) prefijo = `Mañana, ${diaCapital}`
-  else prefijo = diaCapital
+  else prefijo = `${diaCapital} ${fechaCorta}`
 
   const hora = turno.hora_inicio
     ? `${turno.hora_inicio.slice(0, 5)} – ${turno.hora_fin?.slice(0, 5) ?? '?'}`
@@ -106,6 +107,7 @@ export default function PaginaInicio() {
   const [inventarioPendiente, setInventarioPendiente] = useState(false)
   // Tick cada 60s para recalcular aviso turno sin refetch
   const [tick, setTick] = useState(0)
+  const [companerosTurno, setCompanerosTurno] = useState<string[]>([])
 
   const today = new Date().toISOString().split('T')[0]
 
@@ -122,7 +124,7 @@ export default function PaginaInicio() {
     try {
       const [
         { data: fich, error: fichErr },
-        { data: prox, error: proxErr },
+        { data: turnosProx, error: proxErr },
         { data: sols, error: solsErr },
         { data: hist, error: histErr },
       ] = await Promise.all([
@@ -133,10 +135,10 @@ export default function PaginaInicio() {
         supabase
           .from('turnos').select('*')
           .eq('empleado_id', empleado.id)
-          .or(`fecha.gt.${today},and(fecha.eq.${today},hora_fin.gte.${horaStr})`)
+          .gte('fecha', today)
           .order('fecha', { ascending: true })
           .order('hora_inicio', { ascending: true })
-          .limit(1).maybeSingle(),
+          .limit(20),
         supabase
           .from('solicitudes_vacaciones').select('dias')
           .eq('empleado_id', empleado.id).eq('estado', 'aprobada')
@@ -150,8 +152,40 @@ export default function PaginaInicio() {
       if (proxErr) console.error('[inicio] turnos error:', proxErr.message)
       if (solsErr) console.error('[inicio] solicitudes_vacaciones error:', solsErr.message)
       if (histErr) console.error('[inicio] vacaciones_historial error:', histErr.message)
+
       setFichajesHoy(fich ?? [])
-      setProximoTurno(prox ?? null)
+
+      // Filtrar client-side: primer turno de hoy en adelante que no haya terminado ya
+      const ahoraMin = ahora.getHours() * 60 + ahora.getMinutes()
+      const toMin = (h: string) => { const [hh, mm] = h.split(':').map(Number); return hh * 60 + mm }
+      const proxActivo = (turnosProx ?? []).find(t => {
+        if (t.fecha > today) return true          // día futuro: siempre válido
+        if (!t.hora_fin) return true              // hoy sin hora_fin: incluir
+        return toMin(t.hora_fin.slice(0, 5)) > ahoraMin  // hoy: solo si no ha terminado
+      }) ?? null
+      setProximoTurno(proxActivo)
+
+      // Compañeros del próximo turno
+      try {
+        let comps: string[] = []
+        if (proxActivo) {
+          const { data: turnosComp } = await supabase
+            .from('turnos').select('empleado_id')
+            .eq('fecha', proxActivo.fecha)
+            .neq('empleado_id', empleado.id)
+          const empIds = [...new Set((turnosComp ?? []).map((t: any) => t.empleado_id as number))]
+          if (empIds.length > 0) {
+            const { data: empsNombres } = await supabase
+              .from('empleados').select('nombre')
+              .in('id', empIds)
+            comps = (empsNombres ?? []).map((e: any) => e.nombre as string).filter(Boolean)
+          }
+        }
+        setCompanerosTurno(comps)
+      } catch {
+        setCompanerosTurno([])
+      }
+
       const totales   = hist?.dias_totales          ?? 23
       const historico = hist?.dias_usados_historico ?? 0
       const usadosApp = (sols ?? []).reduce((s, r) => s + r.dias, 0)
@@ -161,6 +195,7 @@ export default function PaginaInicio() {
       console.error('[inicio] Excepción en bloque principal:', err)
       setFichajesHoy(prev => prev ?? [])
       setProximoTurno(null)
+      setCompanerosTurno([])
       setDiasRestantes(0)
     }
 
@@ -474,12 +509,26 @@ export default function PaginaInicio() {
           {proximoTurno ? (
             <div>
               <p className="text-base font-bold text-gray-900">{proximoTurno.tipo_turno}</p>
-              <p className="text-sm text-gray-500 mt-1 leading-snug">
-                {etiquetaTurno(proximoTurno)}
-              </p>
+              <p className="text-sm text-gray-500 mt-1 leading-snug">{etiquetaTurno(proximoTurno)}</p>
+              {companerosTurno.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <p className="text-[10px] text-gray-400 mb-1.5">Compañeros</p>
+                  <div className="flex items-center gap-1">
+                    {companerosTurno.slice(0, 4).map((nombre, i) => (
+                      <div key={i} title={nombre}
+                        className="w-6 h-6 rounded-full bg-[#F5B731]/20 border border-[#F5B731]/40 flex items-center justify-center text-[9px] font-bold text-[#1A1A1A]">
+                        {nombre.trim().charAt(0).toUpperCase()}
+                      </div>
+                    ))}
+                    {companerosTurno.length > 4 && (
+                      <span className="text-[10px] text-gray-400 ml-0.5">+{companerosTurno.length - 4}</span>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
-            <p className="text-base text-gray-400">Sin turnos</p>
+            <p className="text-base text-gray-400">Sin turnos asignados</p>
           )}
         </div>
 

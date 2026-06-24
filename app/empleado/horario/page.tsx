@@ -41,6 +41,7 @@ export default function PaginaHorario() {
   const [semana, setSemana] = useState(() => inicioSemana(new Date()))
   const [turnos, setTurnos] = useState<Turno[]>([])
   const [loading, setLoading] = useState(true)
+  const [companerosPorFecha, setCompanerosPorFecha] = useState<Record<string, string[]>>({})
 
   // En vista DÍA cargamos la semana que contiene diaActual — así navegar días consecutivos
   // dentro de la misma semana no provoca petición extra.
@@ -55,6 +56,7 @@ export default function PaginaHorario() {
   const cargar = useCallback(async () => {
     if (!empleado) return
     setLoading(true)
+
     const { data } = await supabase
       .from('turnos')
       .select('*')
@@ -62,6 +64,38 @@ export default function PaginaHorario() {
       .gte('fecha', fechaInicio)
       .lte('fecha', fechaFin)
     setTurnos(data ?? [])
+
+    // Compañeros: otros empleados con turno en el mismo rango de fechas
+    try {
+      const { data: turnosComp } = await supabase
+        .from('turnos')
+        .select('fecha, empleado_id')
+        .neq('empleado_id', empleado.id)
+        .gte('fecha', fechaInicio)
+        .lte('fecha', fechaFin)
+
+      if (turnosComp && turnosComp.length > 0) {
+        const empIds = [...new Set(turnosComp.map((t: any) => t.empleado_id as number))]
+        const { data: empsNombres } = await supabase
+          .from('empleados').select('id, nombre').in('id', empIds)
+        const nombrePorId: Record<number, string> = Object.fromEntries(
+          (empsNombres ?? []).map((e: any) => [e.id, e.nombre as string])
+        )
+        const porFecha: Record<string, string[]> = {}
+        for (const t of turnosComp) {
+          const nombre = nombrePorId[(t as any).empleado_id]
+          if (!nombre) continue
+          if (!porFecha[(t as any).fecha]) porFecha[(t as any).fecha] = []
+          if (!porFecha[(t as any).fecha].includes(nombre)) porFecha[(t as any).fecha].push(nombre)
+        }
+        setCompanerosPorFecha(porFecha)
+      } else {
+        setCompanerosPorFecha({})
+      }
+    } catch {
+      setCompanerosPorFecha({})
+    }
+
     setLoading(false)
   }, [empleado, fechaInicio, fechaFin])
 
@@ -194,6 +228,26 @@ export default function PaginaHorario() {
               })}
             </div>
           )}
+
+          {/* Compañeros del día */}
+          {!loading && turnosDia.length > 0 && (companerosPorFecha[toISO(diaActual)] ?? []).length > 0 && (
+            <div className="mt-4 bg-white rounded-2xl border border-gray-200 p-4">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Trabajan este día</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                {(companerosPorFecha[toISO(diaActual)] ?? []).slice(0, 8).map((nombre, i) => (
+                  <div key={i} className="flex items-center gap-1.5">
+                    <div className="w-8 h-8 rounded-full bg-[#F5B731]/20 border border-[#F5B731]/30 flex items-center justify-center text-sm font-bold text-[#1A1A1A]" title={nombre}>
+                      {nombre.trim().charAt(0).toUpperCase()}
+                    </div>
+                    <span className="text-sm text-gray-700">{nombre.split(' ')[0]}</span>
+                  </div>
+                ))}
+                {(companerosPorFecha[toISO(diaActual)] ?? []).length > 8 && (
+                  <span className="text-xs text-gray-400 font-medium">+{(companerosPorFecha[toISO(diaActual)] ?? []).length - 8} más</span>
+                )}
+              </div>
+            </div>
+          )}
         </>
       )}
 
@@ -291,6 +345,23 @@ export default function PaginaHorario() {
                         })
                       )}
                     </div>
+
+                    {/* Compañeros del día en vista semana */}
+                    {!loading && celdaTurnos.length > 0 && (companerosPorFecha[fecha] ?? []).length > 0 && (
+                      <div className="flex gap-0.5 mt-1.5 flex-wrap">
+                        {(companerosPorFecha[fecha] ?? []).slice(0, 3).map((nombre, i) => (
+                          <div key={i} title={nombre}
+                            className="w-4 h-4 rounded-full bg-gray-100 flex items-center justify-center text-[7px] font-bold text-gray-500">
+                            {nombre.trim().charAt(0).toUpperCase()}
+                          </div>
+                        ))}
+                        {(companerosPorFecha[fecha] ?? []).length > 3 && (
+                          <span className="text-[7px] text-gray-400 self-center">
+                            +{(companerosPorFecha[fecha] ?? []).length - 3}
+                          </span>
+                        )}
+                      </div>
+                    )}
 
                     {/* Ver día al tocar */}
                     <button
