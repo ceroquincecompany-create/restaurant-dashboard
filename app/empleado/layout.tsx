@@ -14,6 +14,7 @@ export default function EmpleadoLayout({ children }: { children: React.ReactNode
   const { empleado } = useEmpleadoActual()
   const [modalLogout, setModalLogout] = useState(false)
   const [anunciosSinLeer, setAnunciosSinLeer] = useState(0)
+  const [fichajeAbierto, setFichajeAbierto] = useState(false)
 
   useEffect(() => {
     if (!empleado?.id) return
@@ -41,6 +42,17 @@ export default function EmpleadoLayout({ children }: { children: React.ReactNode
       const firmasPendientes = allDocIds.filter(id => !firmadasIds.has(id)).length
 
       setAnunciosSinLeer((noLeidos ?? 0) + firmasPendientes)
+
+      // Badge fichaje abierto sin cerrar
+      const today = new Date().toISOString().split('T')[0]
+      const { data: fichs } = await supabase
+        .from('fichajes')
+        .select('id, hora_salida')
+        .eq('empleado_id', empId)
+        .eq('fecha', today)
+        .is('hora_salida', null)
+        .limit(1)
+      setFichajeAbierto((fichs ?? []).length > 0)
     }
 
     contarPendientes()
@@ -49,7 +61,7 @@ export default function EmpleadoLayout({ children }: { children: React.ReactNode
   }, [empleado?.id])
 
   const navMovil = [
-    { href: '/empleado/inicio',     icono: Home,          label: 'Inicio' },
+    { href: '/empleado/inicio',     icono: Home,          label: 'Inicio',    badge: fichajeAbierto ? -1 : 0 },
     { href: '/empleado/ops',        icono: Wrench,        label: 'Ops' },
     { href: '/empleado/pedidos',    icono: ShoppingCart,  label: 'Compras' },
     { href: '/empleado/horario',    icono: CalendarDays,  label: 'Horario' },
@@ -100,6 +112,9 @@ export default function EmpleadoLayout({ children }: { children: React.ReactNode
               >
                 <div className="relative">
                   <Icono size={22} strokeWidth={activo ? 2.5 : 1.8} />
+                  {badge === -1 && (
+                    <span className="absolute -top-1 -right-1 w-3 h-3 bg-[#F5B731] border-2 border-white rounded-full" />
+                  )}
                   {(badge ?? 0) > 0 && (
                     <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] bg-rose-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 leading-none">
                       {(badge ?? 0) > 9 ? '9+' : badge}

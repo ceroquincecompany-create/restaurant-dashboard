@@ -272,6 +272,22 @@ export default function PaginaInicio() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const avisoTurno = useMemo(() => calcAvisoTurno(proximoTurno, fichajesHoy ?? []), [proximoTurno, fichajesHoy, tick])
 
+  const minutosTranscurridos = useMemo(() => {
+    const lista = fichajesHoy ?? []
+    const ultimo = lista[lista.length - 1] ?? null
+    if (!ultimo || ultimo.hora_salida !== null || !ultimo.hora_entrada) return 0
+    const [h, m] = ultimo.hora_entrada.split(':').map(Number)
+    const entradaMin = h * 60 + m
+    const ahoraMin = new Date().getHours() * 60 + new Date().getMinutes()
+    let diff = ahoraMin - entradaMin
+    if (diff < 0) diff += 24 * 60
+    return diff
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fichajesHoy, tick])
+
+  const horasTranscurridas = minutosTranscurridos / 60
+  const avisarSalida = horasTranscurridas >= 6
+
   async function fichar() {
     if (!empleado || geoStatus !== 'ok') return
     setFichando(true)
@@ -373,6 +389,17 @@ export default function PaginaInicio() {
           </div>
         </div>
       )}
+      {avisarSalida && turnoAbierto && avisoTurno !== 'salida_pronto' && (
+        <div className="flex items-center gap-3 mb-4 bg-[#F5B731]/15 border-2 border-[#F5B731] rounded-xl px-4 py-3">
+          <Clock size={20} className="text-[#F5B731] flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-bold text-[#1A1A1A]">
+              Llevas {horasTranscurridas.toFixed(1).replace('.0', '')} horas fichado
+            </p>
+            <p className="text-xs text-gray-600 mt-0.5">Recuerda fichar la salida cuando termines</p>
+          </div>
+        </div>
+      )}
 
       {/* ── Banners de alertas operacionales ── */}
       {(inventarioPendiente || avisosActivos > 0 || tempMañanaPendiente || tempNochePendiente || limpiezasPendientes > 0) && (
@@ -461,11 +488,22 @@ export default function PaginaInicio() {
       )}
 
       {/* ── Botón FICHAR ── */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-5 mb-4">
+      <div className={`bg-white rounded-2xl p-5 mb-4 ${
+        turnoAbierto
+          ? 'border-2 border-[#1A1A1A] shadow-lg'
+          : 'border border-gray-200'
+      }`}>
         {turnoAbierto && ultimoFichaje?.hora_entrada && (
-          <p className="text-base text-gray-500 mb-3 text-center">
-            Entrada a las <strong className="text-gray-800">{ultimoFichaje.hora_entrada.slice(0, 5)}</strong>
-          </p>
+          <div className="mb-3 text-center">
+            <p className="text-base text-gray-500">
+              Entrada a las <strong className="text-gray-800">{ultimoFichaje.hora_entrada.slice(0, 5)}</strong>
+            </p>
+            {horasTranscurridas >= 1 && (
+              <p className="text-xs text-gray-400 mt-0.5">
+                {horasTranscurridas.toFixed(1)}h en curso
+              </p>
+            )}
+          </div>
         )}
         {!turnoAbierto && lista.length > 0 && (
           <p className="text-base text-gray-500 mb-3 text-center">
@@ -475,7 +513,9 @@ export default function PaginaInicio() {
         <button
           onClick={fichar}
           disabled={!puedefichar || fichando}
-          className={`w-full min-h-[80px] rounded-xl text-xl font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-3 ${
+          className={`w-full rounded-xl text-xl font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-3 ${
+            turnoAbierto ? 'min-h-[96px]' : 'min-h-[80px]'
+          } ${
             puedefichar
               ? turnoAbierto
                 ? 'bg-[#1A1A1A] text-white hover:bg-gray-800'
@@ -486,7 +526,16 @@ export default function PaginaInicio() {
           {fichando ? (
             <><RefreshCw size={22} className="animate-spin" /> Fichando...</>
           ) : turnoAbierto ? (
-            <><LogOut size={24} /> FICHAR SALIDA</>
+            <div className="flex flex-col items-center gap-1">
+              <div className="flex items-center gap-3">
+                <LogOut size={28} /> <span className="text-2xl">FICHAR SALIDA</span>
+              </div>
+              {avisarSalida && (
+                <span className="text-sm font-medium text-white/70">
+                  {Math.floor(horasTranscurridas)}h {Math.round((horasTranscurridas % 1) * 60)}min fichado
+                </span>
+              )}
+            </div>
           ) : (
             <><LogIn size={24} /> FICHAR ENTRADA</>
           )}
