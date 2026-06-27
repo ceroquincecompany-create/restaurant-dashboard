@@ -9,6 +9,7 @@ import {
   RefreshCw, GripVertical, EyeOff,
   TrendingUp, TrendingDown,
   Thermometer, Sparkles, Trash2, Bell, Package, ChevronRight,
+  ReceiptText, Banknote, CreditCard, Car,
 } from 'lucide-react'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
@@ -681,6 +682,122 @@ export function WidgetAvisosActivos({ editMode, onHide }: { editMode: boolean; o
           {data.total === 0 && data.ultimos3.length === 0 && (
             <p className="text-sm text-gray-400 text-center py-2">Sin avisos activos</p>
           )}
+        </div>
+      )}
+    </WidgetShell>
+  )
+}
+
+// ─────────────────────────────────────────────
+// WIDGET CIERRE CAJA
+// ─────────────────────────────────────────────
+type CierreCaja = {
+  id: number
+  fecha_fin: string | null
+  numero_sesion: string | null
+  cerrado_por: string | null
+  ventas_total: number | null
+  ventas_efectivo: number | null
+  ventas_tarjeta: number | null
+  ventas_uber: number | null
+  desajuste_caja: number | null
+}
+
+export function WidgetCierreCaja({ editMode, onHide }: { editMode: boolean; onHide: () => void }) {
+  const [cierre, setCierre] = useState<CierreCaja | null>(null)
+  const [cargando, setCargando] = useState(true)
+
+  useEffect(() => {
+    async function cargar() {
+      setCargando(true)
+      const today = new Date().toISOString().split('T')[0]
+      const nextDay = new Date(Date.now() + 86400000).toISOString().split('T')[0]
+
+      // Intentar por fecha_fin de hoy; si no, por created_at
+      const { data } = await supabase
+        .from('cierres_caja')
+        .select('id,fecha_fin,numero_sesion,cerrado_por,ventas_total,ventas_efectivo,ventas_tarjeta,ventas_uber,desajuste_caja')
+        .gte('created_at', `${today}T00:00:00`)
+        .lt('created_at', `${nextDay}T00:00:00`)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      setCierre(data ?? null)
+      setCargando(false)
+    }
+    cargar()
+  }, [])
+
+  const fmtEurDec = (n: number | null) =>
+    n == null ? '—' : n.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
+
+  return (
+    <WidgetShell
+      titulo="Ventas de hoy"
+      editMode={editMode}
+      onHide={onHide}
+      headerRight={
+        <Link href="/finanzas/cierres" className="text-xs text-gray-400 hover:text-[#F5B731] transition-colors flex items-center gap-1">
+          Ver todos <ChevronRight size={12} />
+        </Link>
+      }
+    >
+      {cargando ? (
+        <div className="flex items-center justify-center py-8">
+          <RefreshCw size={18} className="animate-spin text-gray-300" />
+        </div>
+      ) : cierre === null ? (
+        <div className="flex flex-col items-center justify-center py-8 text-center gap-2">
+          <ReceiptText size={32} className="text-gray-200" />
+          <p className="text-sm font-medium text-gray-400">Sin cierre registrado hoy</p>
+          <p className="text-xs text-gray-300">Los datos llegan automáticamente por email</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {/* Total */}
+          <div>
+            <p className="text-xs text-gray-400 mb-0.5">Total ventas</p>
+            <p className="text-3xl font-bold text-gray-900 tracking-tight">{fmtEurDec(cierre.ventas_total)}</p>
+            {cierre.numero_sesion && (
+              <p className="text-xs text-gray-400 mt-0.5">Sesión {cierre.numero_sesion}</p>
+            )}
+          </div>
+
+          {/* Breakdown */}
+          <div className="grid grid-cols-3 gap-2">
+            <div className="bg-emerald-50 rounded-xl p-2.5">
+              <div className="flex items-center gap-1 mb-1">
+                <Banknote size={12} className="text-emerald-500" />
+                <span className="text-[10px] font-semibold text-emerald-600">Efectivo</span>
+              </div>
+              <p className="text-sm font-bold text-emerald-700">{fmtEurDec(cierre.ventas_efectivo)}</p>
+            </div>
+            <div className="bg-blue-50 rounded-xl p-2.5">
+              <div className="flex items-center gap-1 mb-1">
+                <CreditCard size={12} className="text-blue-500" />
+                <span className="text-[10px] font-semibold text-blue-600">Tarjeta</span>
+              </div>
+              <p className="text-sm font-bold text-blue-700">{fmtEurDec(cierre.ventas_tarjeta)}</p>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-2.5">
+              <div className="flex items-center gap-1 mb-1">
+                <Car size={12} className="text-gray-500" />
+                <span className="text-[10px] font-semibold text-gray-500">Uber</span>
+              </div>
+              <p className="text-sm font-bold text-gray-700">{fmtEurDec(cierre.ventas_uber)}</p>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="flex items-center justify-between text-xs text-gray-400 pt-1 border-t border-gray-100">
+            {cierre.cerrado_por && <span>Cerrado por {cierre.cerrado_por}</span>}
+            {cierre.desajuste_caja != null && cierre.desajuste_caja !== 0 && (
+              <span className={`font-semibold ${Math.abs(cierre.desajuste_caja) > 5 ? 'text-rose-500' : 'text-amber-500'}`}>
+                Desajuste {fmtEurDec(cierre.desajuste_caja)}
+              </span>
+            )}
+          </div>
         </div>
       )}
     </WidgetShell>

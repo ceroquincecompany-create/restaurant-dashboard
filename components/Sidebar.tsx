@@ -32,6 +32,7 @@ const finanzasItems = [
   { href: '/finanzas/entrada', icono: PlusSquare, label: 'Entrada de Datos' },
   { href: '/finanzas/presupuesto', icono: Target, label: 'Presupuesto' },
   { href: '/finanzas/salud', icono: Heart, label: 'Salud Financiera' },
+  { href: '/finanzas/cierres', icono: ReceiptText, label: 'Cierres de Caja' },
 ]
 
 const comprasItems = [

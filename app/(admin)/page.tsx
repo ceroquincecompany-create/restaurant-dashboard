@@ -12,6 +12,7 @@ import {
   WidgetOpsAvisadores,
   WidgetMermasMes,
   WidgetAvisosActivos,
+  WidgetCierreCaja,
 } from '@/components/dashboard/widgets'
 import { Euro, Percent, Users, TrendingUp, RefreshCw, Settings2, Eye, Check, Timer } from 'lucide-react'
 import { useState, useCallback, useEffect, useRef } from 'react'
@@ -21,7 +22,7 @@ import { useFichajeActivo } from '@/lib/useFichajeActivo'
 // WIDGET SYSTEM
 // ─────────────────────────────────────────────
 
-type WidgetId = 'salud_financiera' | 'ebitda' | 'ops_avisadores' | 'mermas_mes' | 'avisos_activos'
+type WidgetId = 'salud_financiera' | 'ebitda' | 'ops_avisadores' | 'mermas_mes' | 'avisos_activos' | 'cierres_caja'
 type WidgetCfg = { id: WidgetId; visible: boolean }
 
 const STORAGE_KEY = 'sofi_dashboard_widgets_v1'
@@ -32,11 +33,13 @@ const WIDGET_META: Record<WidgetId, { label: string; large: boolean }> = {
   ops_avisadores:   { label: 'Avisadores Operaciones',   large: false },
   mermas_mes:       { label: 'Mermas del Mes',           large: false },
   avisos_activos:   { label: 'Avisos Activos',           large: false },
+  cierres_caja:     { label: 'Ventas de hoy',            large: false },
 }
 
 const DEFAULTS: WidgetCfg[] = [
   { id: 'salud_financiera', visible: true },
   { id: 'ebitda',           visible: true },
+  { id: 'cierres_caja',     visible: true },
   { id: 'ops_avisadores',   visible: true },
   { id: 'mermas_mes',       visible: true },
   { id: 'avisos_activos',   visible: true },
@@ -157,6 +160,7 @@ export default function Dashboard() {
       case 'ops_avisadores':   return <WidgetOpsAvisadores key={w.id} {...props} />
       case 'mermas_mes':       return <WidgetMermasMes key={w.id} {...props} />
       case 'avisos_activos':   return <WidgetAvisosActivos key={w.id} {...props} />
+      case 'cierres_caja':     return <WidgetCierreCaja key={w.id} {...props} />
     }
   }
 
