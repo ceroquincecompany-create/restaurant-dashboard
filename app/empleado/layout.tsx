@@ -43,16 +43,14 @@ export default function EmpleadoLayout({ children }: { children: React.ReactNode
 
       setAnunciosSinLeer((noLeidos ?? 0) + firmasPendientes)
 
-      // Badge fichaje abierto sin cerrar
+      // Badge fichaje abierto sin cerrar (solo si fichaje está activo)
       const today = new Date().toISOString().split('T')[0]
-      const { data: fichs } = await supabase
-        .from('fichajes')
-        .select('id, hora_salida')
-        .eq('empleado_id', empId)
-        .eq('fecha', today)
-        .is('hora_salida', null)
-        .limit(1)
-      setFichajeAbierto((fichs ?? []).length > 0)
+      const [{ data: fichs }, { data: configFichaje }] = await Promise.all([
+        supabase.from('fichajes').select('id, hora_salida').eq('empleado_id', empId).eq('fecha', today).is('hora_salida', null).limit(1),
+        supabase.from('configuracion_app').select('valor').eq('clave', 'fichaje_activo').maybeSingle(),
+      ])
+      const fichajeEnabled = configFichaje ? configFichaje.valor === 'true' : true
+      setFichajeAbierto(fichajeEnabled && (fichs ?? []).length > 0)
     }
 
     contarPendientes()

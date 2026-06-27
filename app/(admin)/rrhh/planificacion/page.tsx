@@ -8,8 +8,9 @@ import {
   CalendarDays, ClipboardList, UserCheck,
   ChevronLeft, ChevronRight, Plus, X, Trash2, RefreshCw, Copy, Undo2,
   Pencil, Download, List, LayoutGrid,
-  CheckCircle2, XCircle, Clock, Users, AlertTriangle,
+  CheckCircle2, XCircle, Clock, Users, AlertTriangle, Timer,
 } from 'lucide-react'
+import { useFichajeActivo } from '@/lib/useFichajeActivo'
 
 // ─────────────────────────────────────────────
 // Shared helpers
@@ -1011,6 +1012,34 @@ const TABS: { id: TabId; label: string; Icono: React.ElementType }[] = [
   { id: 'fichajes',  label: 'Fichajes',  Icono: ClipboardList },
 ]
 
+function ToggleFichaje() {
+  const { fichajeActivo, cargando, guardando, setFichajeActivo } = useFichajeActivo()
+
+  if (cargando) return <div className="w-32 h-7 bg-gray-100 rounded-lg animate-pulse" />
+
+  const activo = fichajeActivo !== false
+
+  return (
+    <div className="flex items-center gap-2.5">
+      <Timer size={14} className={activo ? 'text-emerald-600' : 'text-rose-500'} />
+      <span className="text-xs font-medium text-gray-500 hidden sm:inline">Jornada:</span>
+      <button
+        onClick={() => setFichajeActivo(!activo)}
+        disabled={guardando}
+        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none disabled:opacity-60 ${
+          activo ? 'bg-emerald-500' : 'bg-rose-400'
+        }`}
+        title={activo ? 'Desactivar registro de jornada' : 'Activar registro de jornada'}
+      >
+        <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${activo ? 'translate-x-6' : 'translate-x-1'}`} />
+      </button>
+      <span className={`text-xs font-semibold ${activo ? 'text-emerald-600' : 'text-rose-500'}`}>
+        {activo ? 'Activo' : 'Desactivado'}
+      </span>
+    </div>
+  )
+}
+
 function PlanificacionContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -1026,19 +1055,24 @@ function PlanificacionContent() {
 
   return (
     <div>
-      <div className="border-b border-gray-200 bg-white flex sticky top-0 z-10">
-        {TABS.map(({ id, label, Icono }) => (
-          <button
-            key={id}
-            onClick={() => cambiarTab(id)}
-            className={`flex items-center gap-2 px-5 py-3.5 text-sm font-medium border-b-2 transition-colors ${
-              tab === id ? 'border-[#F5B731] text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <Icono size={14} />
-            {label}
-          </button>
-        ))}
+      <div className="border-b border-gray-200 bg-white flex items-center sticky top-0 z-10">
+        <div className="flex flex-1">
+          {TABS.map(({ id, label, Icono }) => (
+            <button
+              key={id}
+              onClick={() => cambiarTab(id)}
+              className={`flex items-center gap-2 px-5 py-3.5 text-sm font-medium border-b-2 transition-colors ${
+                tab === id ? 'border-[#F5B731] text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <Icono size={14} />
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="px-4 border-b-2 border-transparent py-3.5">
+          <ToggleFichaje />
+        </div>
       </div>
       {tab === 'turnos'    && <TurnosTab />}
       {tab === 'presencia' && <PresenciaTab />}

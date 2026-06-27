@@ -5,9 +5,10 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import type { Fichaje, Turno } from '@/lib/supabase'
 import { useEmpleadoActual } from '@/lib/useEmpleado'
+import { useFichajeActivo } from '@/lib/useFichajeActivo'
 import {
   RefreshCw, MapPin, CalendarDays, Umbrella, AlertCircle,
-  Bell, Thermometer, Sparkles, ChevronRight, Package, LogIn, LogOut, Clock, XCircle,
+  Bell, Thermometer, Sparkles, ChevronRight, Package, LogIn, LogOut, Clock, XCircle, PauseCircle,
 } from 'lucide-react'
 
 function calcAvisoTurno(turno: Turno | null, fichajes: Fichaje[]): 'pronto' | 'sin_fichar' | 'salida_pronto' | null {
@@ -91,6 +92,7 @@ function etiquetaTurno(turno: Turno): string {
 
 export default function PaginaInicio() {
   const { empleado, loading: empLoading } = useEmpleadoActual()
+  const { fichajeActivo, cargando: configCargando } = useFichajeActivo()
   const [fichajesHoy, setFichajesHoy] = useState<Fichaje[] | undefined>(undefined)
   const [proximoTurno, setProximoTurno] = useState<Turno | null>(null)
   const [diasRestantes, setDiasRestantes] = useState<number | null>(null)
@@ -487,7 +489,14 @@ export default function PaginaInicio() {
         </div>
       )}
 
-      {/* ── Botón FICHAR ── */}
+      {/* ── Botón FICHAR (o mensaje desactivado) ── */}
+      {fichajeActivo === false && !configCargando ? (
+        <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6 mb-4 text-center">
+          <PauseCircle size={32} className="mx-auto text-gray-300 mb-3" />
+          <p className="text-sm font-semibold text-gray-500">El registro de jornada está temporalmente desactivado</p>
+          <p className="text-xs text-gray-400 mt-1">Contacta con tu encargado para más información</p>
+        </div>
+      ) : (
       <div className={`bg-white rounded-2xl p-5 mb-4 ${
         turnoAbierto
           ? 'border-2 border-[#1A1A1A] shadow-lg'
@@ -546,6 +555,7 @@ export default function PaginaInicio() {
           </p>
         )}
       </div>
+      )}
 
       {/* ── Cards info ── */}
       <div className="grid grid-cols-2 gap-3">

@@ -13,8 +13,9 @@ import {
   WidgetMermasMes,
   WidgetAvisosActivos,
 } from '@/components/dashboard/widgets'
-import { Euro, Percent, Users, TrendingUp, RefreshCw, Settings2, Eye, Check } from 'lucide-react'
+import { Euro, Percent, Users, TrendingUp, RefreshCw, Settings2, Eye, Check, Timer } from 'lucide-react'
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { useFichajeActivo } from '@/lib/useFichajeActivo'
 
 // ─────────────────────────────────────────────
 // WIDGET SYSTEM
@@ -220,6 +221,11 @@ export default function Dashboard() {
         <TablaResumen locales={locales} ventasHoy={ventasHoy} />
       </div>
 
+      {/* ── Config rápida ── */}
+      <div className="mb-6">
+        <WidgetConfigFichaje />
+      </div>
+
       {/* ── Gráficos + Formulario ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-10">
         <div className="lg:col-span-2 space-y-4">
@@ -328,6 +334,57 @@ export default function Dashboard() {
             </div>
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────
+// WIDGET CONFIG FICHAJE
+// ─────────────────────────────────────────────
+function WidgetConfigFichaje() {
+  const { fichajeActivo, cargando, guardando, setFichajeActivo } = useFichajeActivo()
+
+  const activo = fichajeActivo !== false
+
+  return (
+    <div className={`rounded-2xl border-2 p-4 flex items-center gap-4 transition-colors ${
+      activo
+        ? 'bg-emerald-50 border-emerald-200'
+        : 'bg-rose-50 border-rose-200'
+    }`}>
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+        activo ? 'bg-emerald-100' : 'bg-rose-100'
+      }`}>
+        <Timer size={20} className={activo ? 'text-emerald-600' : 'text-rose-500'} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-bold text-gray-900">Registro de jornada</p>
+        <p className={`text-xs mt-0.5 ${activo ? 'text-emerald-600' : 'text-rose-500'}`}>
+          {cargando ? 'Cargando...' : activo
+            ? 'Los empleados pueden fichar entrada y salida'
+            : 'El fichaje está desactivado — los empleados no pueden fichar'}
+        </p>
+      </div>
+      <div className="flex items-center gap-3 flex-shrink-0">
+        <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+          activo ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-600'
+        }`}>
+          {activo ? 'Activo' : 'Desactivado'}
+        </span>
+        <button
+          onClick={() => setFichajeActivo(!activo)}
+          disabled={cargando || guardando}
+          className={`relative inline-flex h-7 w-13 items-center rounded-full transition-colors focus:outline-none disabled:opacity-50 ${
+            activo ? 'bg-emerald-500' : 'bg-rose-400'
+          }`}
+          style={{ width: '52px' }}
+          title={activo ? 'Desactivar fichaje' : 'Activar fichaje'}
+        >
+          <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform ${
+            activo ? 'translate-x-6' : 'translate-x-1'
+          }`} />
+        </button>
       </div>
     </div>
   )

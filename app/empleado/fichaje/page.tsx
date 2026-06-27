@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Fichaje } from '@/lib/supabase'
 import { useEmpleadoActual } from '@/lib/useEmpleado'
-import { MapPin, RefreshCw, Clock, AlertCircle, Navigation, LogIn, LogOut, CheckCircle2 } from 'lucide-react'
+import { useFichajeActivo } from '@/lib/useFichajeActivo'
+import { MapPin, RefreshCw, Clock, AlertCircle, Navigation, LogIn, LogOut, CheckCircle2, PauseCircle } from 'lucide-react'
 
 const LOCAL_LAT = 37.42296249221703
 const LOCAL_LNG = -5.965540822072279
@@ -38,6 +39,7 @@ type GeoStatus = 'checking' | 'ok' | 'far' | 'denied' | 'error'
 
 export default function PaginaFichaje() {
   const { empleado, loading: empLoading } = useEmpleadoActual()
+  const { fichajeActivo, cargando: configCargando } = useFichajeActivo()
   const [fichajeHoy, setFichajeHoy] = useState<Fichaje | null>(null)
   const [fichajes, setFichajes] = useState<Fichaje[]>([])
   const [geoStatus, setGeoStatus] = useState<GeoStatus>('checking')
@@ -107,10 +109,28 @@ export default function PaginaFichaje() {
     cargar()
   }
 
-  if (empLoading || loading) {
+  if (empLoading || loading || configCargando) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <RefreshCw className="animate-spin text-[#F5B731]" size={24} />
+      </div>
+    )
+  }
+
+  if (fichajeActivo === false) {
+    return (
+      <div className="px-4 py-5 md:px-6 md:py-6 max-w-2xl">
+        <div className="hidden md:block mb-5">
+          <h1 className="text-xl font-bold text-gray-900">Fichaje</h1>
+          <p className="text-sm text-gray-400 mt-0.5">Control de presencia</p>
+        </div>
+        <div className="bg-gray-50 border border-gray-200 rounded-2xl p-10 flex flex-col items-center text-center">
+          <PauseCircle size={48} className="text-gray-300 mb-4" />
+          <p className="text-base font-bold text-gray-600">El registro de jornada está temporalmente desactivado</p>
+          <p className="text-sm text-gray-400 mt-2 max-w-xs leading-relaxed">
+            El encargado ha pausado el sistema de fichajes. El resto de la app funciona con normalidad.
+          </p>
+        </div>
       </div>
     )
   }
