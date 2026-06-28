@@ -171,7 +171,7 @@ export default function CierresCajaPage() {
         <div className="bg-white rounded-2xl border border-gray-200 p-16 flex flex-col items-center text-center gap-3">
           <ReceiptText size={40} className="text-gray-200" />
           <p className="text-sm font-medium text-gray-400">Sin cierres en {MESES[mes]} {anio}</p>
-          <p className="text-xs text-gray-300 max-w-xs">Los cierres de caja llegan automáticamente cuando Qamarero envía el email a cierres@lasofi.es</p>
+          <p className="text-xs text-gray-300 max-w-xs">Los cierres de caja llegan automáticamente cuando Qamarero envía el email a cierres@cierres.lasofi.es</p>
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">

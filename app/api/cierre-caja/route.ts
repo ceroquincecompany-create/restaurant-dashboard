@@ -6,6 +6,7 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY
 const ANON_KEY     = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 const WEBHOOK_SECRET = process.env.RESEND_WEBHOOK_SECRET ?? ''
+const RECIPIENT_EMAIL = 'cierres@cierres.lasofi.es'
 
 // ─── Svix webhook signature verification ─────────────────────
 function verificarFirma(rawBody: string, headers: Headers): boolean {
@@ -67,7 +68,19 @@ function parsearCierreCaja(raw: string): CierreParsed {
 
   function toNum(s: string | null): number | null {
     if (!s) return null
-    const n = parseFloat(s.replace(/[€\s]/g, '').replace(',', '.'))
+    let clean = s.replace(/[€\s]/g, '').trim()
+    if (!clean || clean === '-') return null
+    // Detectar formato europeo "1.554,40" (coma decimal): la coma aparece después del último punto
+    const lastDot   = clean.lastIndexOf('.')
+    const lastComma = clean.lastIndexOf(',')
+    if (lastComma > lastDot) {
+      // Formato europeo: quitar puntos de miles, reemplazar coma decimal por punto
+      clean = clean.replace(/\./g, '').replace(',', '.')
+    } else {
+      // Formato estándar "1554.40": quitar comas de miles si las hay
+      clean = clean.replace(/,/g, '')
+    }
+    const n = parseFloat(clean)
     return isNaN(n) ? null : n
   }
 
@@ -87,8 +100,6 @@ function parsearCierreCaja(raw: string): CierreParsed {
   }
 
   // ─ Scalar fields ─────────────────────────────────────────────
-  const TAB = /[\t\s]{2,}/ // tab or 2+ spaces
-
   const fechaInicioRaw = findLine([
     /^(?:Inicio\s+sesi[oó]n|Inicio\s+de\s+sesi[oó]n|Apertura|Fecha\s+inicio|Fecha\s+apertura)\t(.+)/i,
     /^(?:Inicio\s+sesi[oó]n|Apertura)\s{2,}(.+)/i,
@@ -180,13 +191,13 @@ function parsearCierreCaja(raw: string): CierreParsed {
   const catStart = text.search(/VENTAS\s+POR\s+CATEGOR[ÍI]A/i)
   const catEnd   = text.search(/VENTAS\s+POR\s+ZONAS/i)
   if (catStart >= 0) {
-    const sectionRaw = text.slice(
-      catStart,
-      catEnd > catStart ? catEnd : undefined
-    )
+    // Si no hay sección VENTAS POR ZONAS, parsear hasta el final del texto
+    const sectionEnd = catEnd > catStart ? catEnd : text.length
+    const sectionRaw = text.slice(catStart, sectionEnd)
     for (const line of sectionRaw.split('\n').slice(1)) {
       const trimmed = line.trim()
-      if (!trimmed || /VENTAS\s+POR/i.test(trimmed)) break
+      if (!trimmed) continue // saltar líneas en blanco dentro de la sección
+      if (/VENTAS\s+POR/i.test(trimmed)) break // otro encabezado de sección
       const parts = trimmed.split('\t')
       if (parts.length >= 2) {
         const nombre  = parts[0].trim()
@@ -232,8 +243,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'JSON inválido' }, { status: 400 })
   }
 
-  // Extraer texto del email desde la estructura de Resend
+  // Extraer datos del email desde la estructura de Resend
   const emailData = payload?.data ?? payload
+
+  // Verificar destinatario (logging, no rechaza — el routing lo gestiona Resend)
+  const recipients: string[] = Array.isArray(emailData?.to)
+    ? emailData.to
+    : typeof emailData?.to === 'string'
+      ? [emailData.to]
+      : []
+  if (recipients.length > 0 && !recipients.some((r: string) => r.includes(RECIPIENT_EMAIL))) {
+    console.warn('[cierre-caja] destinatario inesperado:', recipients)
+  }
+
   const textBody: string =
     emailData?.text ??
     emailData?.plain_text ??
