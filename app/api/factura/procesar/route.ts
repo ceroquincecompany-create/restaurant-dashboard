@@ -1,70 +1,184 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { NextResponse } from 'next/server'
 
-// ─── Parser regex para facturas españolas (Avinatur y similares) ───
+// ─── Parser regex para facturas españolas ─────────────────────────
 function parsearFacturaRegex(text: string): Record<string, unknown> | null {
-  function num(s: string | undefined): number | null {
+  const t     = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+  const lines = t.split('\n').map(l => l.trim()).filter(Boolean)
+
+  // ── helpers ────────────────────────────────────────────────────
+  function num(s: string | null | undefined): number | null {
     if (!s) return null
-    // Detectar formato europeo "1.554,40" vs estándar "1554.40"
-    const lastDot   = s.lastIndexOf('.')
-    const lastComma = s.lastIndexOf(',')
-    let clean = s.trim()
-    if (lastComma > lastDot) {
-      clean = clean.replace(/\./g, '').replace(',', '.')
-    } else {
-      clean = clean.replace(/,/g, '')
-    }
+    const c = s.trim()
+    const lastDot   = c.lastIndexOf('.')
+    const lastComma = c.lastIndexOf(',')
+    const clean = lastComma > lastDot
+      ? c.replace(/\./g, '').replace(',', '.')
+      : c.replace(/,/g, '')
     const n = parseFloat(clean)
     return isNaN(n) ? null : n
   }
-  function date(s: string | undefined): string | null {
+  function toDate(s: string | null | undefined): string | null {
     if (!s) return null
     const m = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/)
-    if (!m) return null
-    return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`
+    return m ? `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}` : null
+  }
+  // Typical Spanish VAT rates (accepts "10", "10.00", "10,00", "21", etc.)
+  function isIvaRate(s: string): boolean {
+    const n = num(s)
+    return n !== null && [0,4,5,10,21].includes(Math.round(n))
   }
 
-  const numeroFactura =
-    text.match(/Num(?:ero)?\s*(?:de\s*)?[Ff]actura[.:\s]+([A-Z0-9\/\-]+)/)?.[1] ??
-    text.match(/(?:Factura|Invoice)\s+N[oº°]?\.?\s*:?\s*([A-Z0-9\/\-]+)/i)?.[1]
-  const fechaStr =
-    text.match(/Fecha\s*[Ff]actura[.:\s]+(\d{1,2}\/\d{1,2}\/\d{4})/)?.[1] ??
-    text.match(/(?:Fecha|Date)[.:\s]+(\d{1,2}\/\d{1,2}\/\d{4})/i)?.[1]
-  const proveedor =
-    text.match(/(?:Empresa|Razón\s*[Ss]ocial|Proveedor)[.:\s]+([^\n]+)/i)?.[1]?.trim()
-  const cif =
-    text.match(/(?:CIF|NIF)[.:\s]+([A-Z]\d{7}[A-Z0-9])/i)?.[1]
-  const baseStr =
-    text.match(/B\.?\s*Imponible[.:\s]+([\d.,]+)/i)?.[1] ??
-    text.match(/Base\s*[Ii]mponible[.:\s]+([\d.,]+)/i)?.[1]
-  const pctStr =
-    text.match(/%\s*I\.?V\.?A\.?\s+([\d.,]+)/i)?.[1] ??
-    text.match(/(?:IVA|VAT)\s*%?[.:\s]+([\d.,]+)/i)?.[1]
-  const cuotaStr =
-    text.match(/Cuota\s*I\.?V\.?A\.?\s+([\d.,]+)/i)?.[1] ??
-    text.match(/(?:Cuota|Importe)\s*IVA[.:\s]+([\d.,]+)/i)?.[1]
-  const totalStr =
-    text.match(/Total\s*Factura\s*€?\s*[.:\s]+([\d.,]+)/i)?.[1] ??
-    text.match(/TOTAL\s*[.:\s]+([\d.,]+)/)?.[1]
-  const formaPago =
-    text.match(/Forma\s*(?:de\s*)?[Pp]ago[.:\s]+([^\n]+)/i)?.[1]?.trim() ??
-    text.match(/(?:Vencimiento|Pago)[.:\s]+([^\n]+)/i)?.[1]?.trim()
+  // ── numero_factura + fecha_factura ─────────────────────────────
+  let numeroFactura: string | null = null
+  let fechaStr:      string | null = null
 
-  const total = num(totalStr)
-  // Mínimo: número de factura + total
-  if (!numeroFactura || !total) return null
+  // Strategy A (Avinatur): header row "Num Factura  Fecha Factura  Cod Cl  Zona"
+  //                         data row  "26A058655    25/06/2026     07984   108"
+  const headerIdx = lines.findIndex(l => /N[uú]m\.?\s+Factura/i.test(l))
+  if (headerIdx >= 0) {
+    const dataRow    = lines[headerIdx + 1] ?? ''
+    const dataTokens = dataRow.split(/\s+/).filter(Boolean)
+    if (dataTokens.length >= 2 && /^[A-Z0-9][A-Z0-9\-\/]{3,}$/i.test(dataTokens[0])) {
+      numeroFactura = dataTokens[0]
+      fechaStr      = dataTokens.find(tk => /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(tk)) ?? null
+    }
+  }
+
+  // Strategy B: inline "Num Factura: 26A058655" or "Nº Factura 26A058655"
+  if (!numeroFactura) {
+    numeroFactura =
+      t.match(/N[uú]m\.?\s*(?:ero)?\s*(?:de\s*)?[Ff]actura\s*[.:\s]+([A-Z0-9][A-Z0-9\-\/]{3,})/i)?.[1] ??
+      t.match(/(?:Factura|Invoice)\s+N[oº°]?\.?\s*:?\s*([A-Z0-9][A-Z0-9\-\/]{3,})/i)?.[1] ??
+      t.match(/F(?:ra|act)\.?\s*[Nn](?:[oº°])?\.?\s*[:\s]+([A-Z0-9][A-Z0-9\-\/]{3,})/i)?.[1] ??
+      null
+  }
+
+  // fecha fallback
+  if (!fechaStr) {
+    fechaStr =
+      // multiline: "Fecha Factura\n25/06/2026" — search near the header
+      (headerIdx >= 0
+        ? (lines[headerIdx + 1] ?? '').match(/(\d{1,2}\/\d{1,2}\/\d{4})/)?.[1]
+        : null) ??
+      t.match(/Fecha\s*[Ff]actura[\s\S]{0,80}?(\d{1,2}\/\d{1,2}\/\d{4})/)?.[1] ??
+      t.match(/(?:Fecha|Date)\s*[:\s]+(\d{1,2}\/\d{1,2}\/\d{4})/i)?.[1] ??
+      null
+  }
+
+  // ── proveedor_nombre ───────────────────────────────────────────
+  // Look for a line with a Spanish company suffix in the first 25 lines
+  const companySuffix = /\b(S\.L\.U?\.?|S\.A\.U?\.?|S\.L\.|S\.A\.|S\.C\.|S\.Coop\.|SLU|SAU?)\b/i
+  let proveedor: string | null = null
+  for (const line of lines.slice(0, 25)) {
+    if (companySuffix.test(line) && line.length >= 5 && line.length <= 100) {
+      proveedor = line.trim()
+      break
+    }
+  }
+  if (!proveedor) {
+    proveedor =
+      t.match(/(?:Empresa|Raz[oó]n\s*[Ss]ocial|Suministrador|Proveedor)\s*[:\s]+([^\n]{3,80})/i)?.[1]?.trim() ??
+      null
+  }
+
+  // ── proveedor_cif ──────────────────────────────────────────────
+  // Spanish CIF/NIF: letter + 7 digits + letter-or-digit (9 chars)
+  // Avinatur: B98619943 — no "CIF:" label, just standalone in the text
+  const cif =
+    t.match(/(?:CIF|NIF)\s*[:\s]+([A-Z]\d{7}[A-Z0-9])/i)?.[1] ??
+    // Standalone — word boundaries prevent partial matches
+    t.match(/(?<![A-Z0-9])([A-Z]\d{7}[A-Z0-9])(?![A-Z0-9])/)?.[1] ??
+    null
+
+  // ── base_imponible, pct_iva, cuota_iva ────────────────────────
+  let baseStr:  string | null = null
+  let pctStr:   string | null = null
+  let cuotaStr: string | null = null
+
+  // Strategy 1: explicit labels (facturas estándar)
+  baseStr =
+    t.match(/B\.?\s*Imponible\s*[:\s]+([\d.,]+)/i)?.[1] ??
+    t.match(/Base\s*[Ii]mponible\s*[:\s]+([\d.,]+)/i)?.[1] ??
+    null
+  pctStr =
+    t.match(/(?:Tipo|%)?\s*I\.?V\.?A\.?\s*%?\s*[:\s]+([\d.,]+)\s*%/i)?.[1] ??
+    t.match(/%\s*I\.?V\.?A\.?\s+([\d.,]+)/i)?.[1] ??
+    null
+  cuotaStr =
+    t.match(/Cuota\s*I\.?V\.?A\.?\s*[:\s]*([\d.,]+)/i)?.[1] ??
+    t.match(/Importe\s*IVA\s*[:\s]*([\d.,]+)/i)?.[1] ??
+    null
+
+  // Strategy 2 (Avinatur): detect totals data row by IVA rate position
+  // Format: "5.36  5.36  10.00  0.54"  (base, base_acum, %iva, cuota)
+  //      or "5.36  10.00  0.54"         (base, %iva, cuota)
+  if (!baseStr || !pctStr || !cuotaStr) {
+    for (const line of lines) {
+      const tks = line.split(/\s+/).filter(Boolean)
+
+      if (tks.length === 4) {
+        // col[2] = %IVA
+        if (tks.every(tk => num(tk) !== null) && isIvaRate(tks[2])) {
+          if (!baseStr)  baseStr  = tks[0]
+          if (!pctStr)   pctStr   = tks[2]
+          if (!cuotaStr) cuotaStr = tks[3]
+          break
+        }
+      }
+      if (tks.length === 3) {
+        // col[1] = %IVA
+        if (tks.every(tk => num(tk) !== null) && isIvaRate(tks[1])) {
+          if (!baseStr)  baseStr  = tks[0]
+          if (!pctStr)   pctStr   = tks[1]
+          if (!cuotaStr) cuotaStr = tks[2]
+          break
+        }
+      }
+    }
+  }
+
+  // ── total ──────────────────────────────────────────────────────
+  // Avinatur: "Total Factura €" on one line, amount on the next
+  let totalStr: string | null = null
+
+  // Multiline: "Total Factura €\n5.90"
+  const totalMulti = t.match(/(?:Total|Importe)\s+Factura\s*€?\s*\n\s*([\d.,]+)/i)?.[1]
+  // Inline: "Total Factura € 5.90"
+  const totalInline =
+    t.match(/(?:Total|Importe)\s+Factura\s*€?\s*[:\s]+([\d.,]+)/i)?.[1] ??
+    t.match(/\bTOTAL\s*€?\s*[:\s]+([\d.,]+)/i)?.[1] ??
+    null
+
+  totalStr = totalMulti ?? totalInline
+
+  // Last resort: base + cuota
+  const totalNum = num(totalStr)
+  const finalTotal = totalNum ??
+    (baseStr && cuotaStr
+      ? Math.round(((num(baseStr) ?? 0) + (num(cuotaStr) ?? 0)) * 100) / 100
+      : null)
+
+  // ── forma de pago ──────────────────────────────────────────────
+  const formaPago =
+    t.match(/Forma\s*(?:de\s*)?[Pp]ago\s*[:\s]+([^\n]{2,60})/i)?.[1]?.trim() ??
+    t.match(/Vencimiento\s*[:\s]+([^\n]{2,60})/i)?.[1]?.trim() ??
+    null
+
+  // Minimum required: invoice number + some total amount
+  if (!numeroFactura || !finalTotal) return null
 
   return {
-    supplier_name:  proveedor ?? null,
-    supplier_cif:   cif ?? null,
+    supplier_name:  proveedor  ?? null,
+    supplier_cif:   cif        ?? null,
     invoice_number: numeroFactura,
-    date:           date(fechaStr),
-    payment_method: formaPago ?? null,
+    date:           toDate(fechaStr),
+    payment_method: formaPago  ?? null,
     items:          [],
     base_amount:    num(baseStr),
     vat_rate:       num(pctStr),
     vat_amount:     num(cuotaStr),
-    total,
+    total:          finalTotal,
   }
 }
 
