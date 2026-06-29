@@ -68,18 +68,30 @@ function parsearFacturaRegex(text: string): Record<string, unknown> | null {
   }
 }
 
-// ─── Extracción de texto de PDF ────────────────────────────────────
+// ─── Extracción de texto de PDF (unpdf — compatible con Vercel Serverless) ───
 async function extraerTextoPDF(base64: string): Promise<string> {
+  const buffer = Buffer.from(base64, 'base64')
+
+  // Intento 1: unpdf (pdfjs-dist isomórfico, sin worker de Node)
   try {
-    const buffer   = Buffer.from(base64, 'base64')
-    const { PDFParse } = await import('pdf-parse')
-    const parser   = new PDFParse({ data: buffer })
-    const result   = await parser.getText()
-    await parser.destroy()
-    return result.text ?? ''
-  } catch {
-    return ''
+    const { extractText } = await import('unpdf')
+    const { text } = await extractText(new Uint8Array(buffer), { mergePages: true })
+    if (text) return text
+  } catch (e) {
+    console.error('[unpdf]', e instanceof Error ? e.message : e)
   }
+
+  // Intento 2: leer texto raw del buffer (PDFs sin comprimir tienen texto legible)
+  try {
+    const raw     = buffer.toString('latin1')
+    const matches = raw.match(/\(([^)]{3,200})\)/g) ?? []
+    const text    = matches
+      .map(m => m.slice(1, -1).replace(/\\n/g, '\n').replace(/\\\\/g, '\\'))
+      .join(' ')
+    if (text.length > 100) return text
+  } catch { /* ignorar */ }
+
+  return ''
 }
 
 // ─── Claude Haiku prompt ───────────────────────────────────────────
