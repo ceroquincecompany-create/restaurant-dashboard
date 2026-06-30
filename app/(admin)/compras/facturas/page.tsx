@@ -233,6 +233,8 @@ export default function PaginaFacturas() {
   const [mostrarSubida, setMostrarSubida]   = useState(false)
   const [localSubida, setLocalSubida]       = useState<number | null>(null)
   const [duplicadoPendiente, setDuplicadoPendiente] = useState<DuplicadoPendiente | null>(null)
+  // Ref síncrono para evitar doble invocación en React strict mode
+  const procesandoRef = useRef(false)
 
   // Filtros
   const [filtroProveedor, setFiltroProveedor] = useState('')
@@ -268,10 +270,12 @@ export default function PaginaFacturas() {
 
   // ── Cola: auto-proceso ──────────────────────────────────────
   useEffect(() => {
+    if (procesandoRef.current) return   // lock síncrono — previene doble invocación en strict mode
     if (procesandoCola) return
-    if (cola.some(i => i.status === 'esperando')) return  // pausar si hay duplicado pendiente
+    if (cola.some(i => i.status === 'esperando')) return
     const siguiente = cola.find(i => i.status === 'pendiente')
     if (!siguiente) return
+    procesandoRef.current = true
     procesarItem(siguiente)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cola, procesandoCola])
@@ -341,14 +345,20 @@ export default function PaginaFacturas() {
       const base64   = await fileToBase64(item.file)
       const mimeType = item.file.type || 'application/pdf'
 
-      const res  = await fetch('/api/factura/procesar', {
+      const res = await fetch('/api/factura/procesar', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ base64, mimeType }),
       })
-      const datos = await res.json()
+      // Capturar texto crudo en caso de que no sea JSON válido
+      const rawText = await res.text()
+      let datos: any
+      try { datos = JSON.parse(rawText) } catch {
+        throw new Error(`API error ${res.status}: ${rawText.slice(0, 200)}`)
+      }
+      if (!res.ok && datos.error) throw new Error(datos.error)
       if (datos.error) throw new Error(datos.error)
 
-      // Storage (no bloquea)
+      // Storage (no bloquea el flujo)
       let archUrl: string | null = null
       try {
         const ext  = item.file.name.split('.').pop() ?? 'pdf'
@@ -365,17 +375,20 @@ export default function PaginaFacturas() {
         datos.supplier_cif  as string | null
       )
 
-      // ── Detección de duplicados ──────────────────────────
-      const cif      = datos.supplier_cif  as string | null
+      // ── Detección de duplicados ──────────────────────────────
+      // Usamos .limit(1) para evitar error si hay múltiples entradas previas idénticas
+      const cif      = datos.supplier_cif   as string | null
       const nFactura = datos.invoice_number as string | null
       if (cif && nFactura) {
         const { data: existente } = await supabase.from('facturas')
-          .select('id, created_at, proveedor_nombre').eq('proveedor_cif', cif)
-          .eq('numero_factura', nFactura).maybeSingle()
+          .select('id, created_at, proveedor_nombre')
+          .eq('proveedor_cif', cif).eq('numero_factura', nFactura)
+          .limit(1).maybeSingle()
         if (existente) {
           setCola(prev => prev.map(i => i.uid === item.uid ? { ...i, status: 'esperando' } : i))
           setDuplicadoPendiente({ item, datos, proveedorId, archUrl, existente })
           setProcesandoCola(false)
+          procesandoRef.current = false
           return
         }
       }
@@ -387,6 +400,7 @@ export default function PaginaFacturas() {
     } catch (err: any) {
       setCola(prev => prev.map(i => i.uid === item.uid ? { ...i, status: 'error', error: err.message } : i))
     } finally {
+      procesandoRef.current = false
       setProcesandoCola(false)
     }
   }
@@ -402,6 +416,8 @@ export default function PaginaFacturas() {
       setCola(prev => prev.map(i => i.uid === item.uid ? { ...i, status: 'error', error: err.message } : i))
     }
     setDuplicadoPendiente(null)
+    // Reanudar cola tras confirmación de duplicado
+    procesandoRef.current = false
   }
 
   function cancelarDuplicado() {
@@ -410,6 +426,7 @@ export default function PaginaFacturas() {
       i.uid === duplicadoPendiente.item.uid ? { ...i, status: 'error', error: 'Cancelado (duplicado)' } : i
     ))
     setDuplicadoPendiente(null)
+    procesandoRef.current = false
   }
 
   function agregarArchivos(files: File[]) {
@@ -558,8 +575,9 @@ export default function PaginaFacturas() {
     const fecha = f.fecha_factura ? new Date(f.fecha_factura + 'T12:00:00') : null
     return (
       (!filtroProveedor || String(f.proveedor_id) === filtroProveedor) &&
-      (!filtroMes  || (fecha && (fecha.getMonth() + 1) === Number(filtroMes))) &&
-      (!filtroAnio || (fecha && fecha.getFullYear() === Number(filtroAnio))) &&
+      // Facturas sin fecha pasan siempre los filtros de fecha (no excluirlas)
+      (!filtroMes  || !fecha || (fecha.getMonth() + 1) === Number(filtroMes)) &&
+      (!filtroAnio || !fecha || fecha.getFullYear() === Number(filtroAnio)) &&
       (!filtroEstado || f.estado === filtroEstado)
     )
   }), [facturas, filtroProveedor, filtroMes, filtroAnio, filtroEstado])
